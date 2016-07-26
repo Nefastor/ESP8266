@@ -62,26 +62,26 @@ blink_task:
 user_init:
 .LFB1:
 	.loc 1 68 0
-	.loc 1 69 0
+	.loc 1 70 0
 	l32r	a2, .LC0
 	.loc 1 68 0
 	addi	sp, sp, -32
 .LCFI3:
-	.loc 1 69 0
+	.loc 1 70 0
 	l32i.n	a4, a2, 0
 	movi	a3, -0x131
 	.loc 1 68 0
 	s32i.n	a0, sp, 28
 .LCFI4:
-	.loc 1 69 0
+	.loc 1 70 0
 	and	a3, a4, a3
 	s32i.n	a3, a2, 0
 	l32i.n	a3, a2, 0
-	.loc 1 74 0
+	.loc 1 73 0
 	movi.n	a5, 0
-	.loc 1 69 0
+	.loc 1 70 0
 	s32i.n	a3, a2, 0
-	.loc 1 74 0
+	.loc 1 73 0
 	l32r	a3, .LC2
 	l32r	a2, .LC3
 	s32i.n	a5, sp, 4
@@ -91,7 +91,7 @@ user_init:
 	movi	a4, 0x100
 	call0	xTaskGenericCreate
 .LVL6:
-	.loc 1 75 0
+	.loc 1 74 0
 	l32i.n	a0, sp, 28
 	addi	sp, sp, 32
 	ret.n
