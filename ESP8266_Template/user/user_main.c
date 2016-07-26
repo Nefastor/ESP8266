@@ -22,6 +22,7 @@
 	SOFTWARE.
 */
 
+// change done in GitHub (directly on the web) and committed from GitHub
 
 #include "esp_common.h"			// Includes a number of commonly-used header files
 
