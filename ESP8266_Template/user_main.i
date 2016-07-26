@@ -3700,26 +3700,25 @@ blink_task(void *pvParameters)
 void
 user_init(void)
 {
+
  do { (*((volatile uint32 *)(((0x60000800 + 0x38))))) = (uint32)(((*((volatile uint32 *)((0x60000800 + 0x38)))) & (~((0x13 << 4))))); (*((volatile uint32 *)(((0x60000800 + 0x38))))) = (uint32)(((*((volatile uint32 *)((0x60000800 + 0x38)))) | ((((0 & 0x00000004) << 2) | (0 & 0x3)) << 4))); } while (0);
 
 
-
-
     xTaskGenericCreate( ( blink_task ), ( "blink_task" ), ( 256 ), ( 
-# 74 "user/user_main.c" 3 4
+# 73 "user/user_main.c" 3 4
    ((void *)0) 
-# 74 "user/user_main.c"
+# 73 "user/user_main.c"
    ), ( 2 ), ( 
-# 74 "user/user_main.c" 3 4
+# 73 "user/user_main.c" 3 4
    ((void *)0) 
-# 74 "user/user_main.c"
+# 73 "user/user_main.c"
    ), ( 
-# 74 "user/user_main.c" 3 4
+# 73 "user/user_main.c" 3 4
    ((void *)0) 
-# 74 "user/user_main.c"
+# 73 "user/user_main.c"
    ), ( 
-# 74 "user/user_main.c" 3 4
+# 73 "user/user_main.c" 3 4
    ((void *)0) 
-# 74 "user/user_main.c"
+# 73 "user/user_main.c"
    ) );
 }
