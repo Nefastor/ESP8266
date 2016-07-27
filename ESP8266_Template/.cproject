@@ -14,7 +14,7 @@
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-				<configuration buildProperties="" description="" id="cdt.managedbuild.toolchain.gnu.mingw.base.1544080900" name="Default" parent="org.eclipse.cdt.build.core.emptycfg">
+				<configuration artifactName="${ProjName}" buildProperties="" description="" id="cdt.managedbuild.toolchain.gnu.mingw.base.1544080900" name="Default" parent="org.eclipse.cdt.build.core.emptycfg">
 					<folderInfo id="cdt.managedbuild.toolchain.gnu.mingw.base.1544080900.1251635855" name="/" resourcePath="">
 						<toolChain id="cdt.managedbuild.toolchain.gnu.mingw.base.651374611" name="MinGW GCC" superClass="cdt.managedbuild.toolchain.gnu.mingw.base">
 							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.PE" id="cdt.managedbuild.target.gnu.platform.mingw.base.991691910" name="Debug Platform" osList="win32" superClass="cdt.managedbuild.target.gnu.platform.mingw.base"/>
@@ -24,7 +24,6 @@
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\espressif\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\freertos\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\json\&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\udhcp\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\ssl\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\lwip\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\lwip\ipv4\lwip\&quot;"/>
@@ -39,7 +38,6 @@
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\espressif\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\freertos\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\json\&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\udhcp\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\ssl\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\lwip\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\lwip\ipv4\&quot;"/>
@@ -52,7 +50,6 @@
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\espressif\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\freertos\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\json\&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\udhcp\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\ssl\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\lwip\&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\Espressif\ESP8266_RTOS_SDK\include\lwip\ipv4\&quot;"/>

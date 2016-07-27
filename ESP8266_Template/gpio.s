@@ -2141,8 +2141,6 @@ gpio16_input_get:
 	.string	"GPIO_Mode_Sigma_Delta"
 .LASF35:
 	.string	"GPIO_Pullup_IF"
-.LASF68:
-	.string	"C:\\\\ESP8266_Git\\\\ESP8266_Template"
 .LASF1:
 	.string	"unsigned char"
 .LASF29:
@@ -2175,6 +2173,8 @@ gpio16_input_get:
 	.string	"vPortEnterCritical"
 .LASF18:
 	.string	"char"
+.LASF68:
+	.string	"C:\\\\ESP8266_Git\\\\ESP8266\\\\ESP8266_Template"
 .LASF41:
 	.string	"set_mask"
 .LASF19:

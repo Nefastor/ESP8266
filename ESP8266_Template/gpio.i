@@ -1,5 +1,5 @@
 # 1 "libraries/gpio.c"
-# 1 "C:\\ESP8266_Git\\ESP8266_Template//"
+# 1 "C:\\ESP8266_Git\\ESP8266\\ESP8266_Template//"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "libraries/gpio.c"

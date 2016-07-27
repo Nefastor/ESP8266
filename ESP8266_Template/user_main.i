@@ -1,9 +1,9 @@
 # 1 "user/user_main.c"
-# 1 "C:\\ESP8266_Git\\ESP8266_Template//"
+# 1 "C:\\ESP8266_Git\\ESP8266\\ESP8266_Template//"
 # 1 "<built-in>"
 # 1 "<command-line>"
 # 1 "user/user_main.c"
-# 26 "user/user_main.c"
+# 28 "user/user_main.c"
 # 1 "c:/Espressif/ESP8266_RTOS_SDK/include/espressif/esp_common.h" 1
 # 93 "c:/Espressif/ESP8266_RTOS_SDK/include/espressif/esp_common.h"
 # 1 "c:/Espressif/ESP8266_RTOS_SDK/include/espressif/c_types.h" 1
@@ -3628,7 +3628,7 @@ void pwm_set_period(uint32 period);
 # 119 "c:/Espressif/ESP8266_RTOS_SDK/include/espressif/pwm.h"
 uint32 pwm_get_period(void);
 # 109 "c:/Espressif/ESP8266_RTOS_SDK/include/espressif/esp_common.h" 2
-# 27 "user/user_main.c" 2
+# 29 "user/user_main.c" 2
 
 
 
@@ -3682,8 +3682,8 @@ void gpio_pin_wakeup_disable();
 void gpio_pin_intr_state_set(uint32 i, GPIO_INT_TYPE intr_state);
 # 293 "libraries/gpio.h"
 uint32 gpio_input_get(void);
-# 32 "user/user_main.c" 2
-# 46 "user/user_main.c"
+# 34 "user/user_main.c" 2
+# 48 "user/user_main.c"
 void
 blink_task(void *pvParameters)
 {
@@ -3696,7 +3696,7 @@ blink_task(void *pvParameters)
      vTaskDelay (20);
     }
 }
-# 66 "user/user_main.c"
+# 68 "user/user_main.c"
 void
 user_init(void)
 {
@@ -3705,20 +3705,20 @@ user_init(void)
 
 
     xTaskGenericCreate( ( blink_task ), ( "blink_task" ), ( 256 ), ( 
-# 73 "user/user_main.c" 3 4
+# 75 "user/user_main.c" 3 4
    ((void *)0) 
-# 73 "user/user_main.c"
+# 75 "user/user_main.c"
    ), ( 2 ), ( 
-# 73 "user/user_main.c" 3 4
+# 75 "user/user_main.c" 3 4
    ((void *)0) 
-# 73 "user/user_main.c"
+# 75 "user/user_main.c"
    ), ( 
-# 73 "user/user_main.c" 3 4
+# 75 "user/user_main.c" 3 4
    ((void *)0) 
-# 73 "user/user_main.c"
+# 75 "user/user_main.c"
    ), ( 
-# 73 "user/user_main.c" 3 4
+# 75 "user/user_main.c" 3 4
    ((void *)0) 
-# 73 "user/user_main.c"
+# 75 "user/user_main.c"
    ) );
 }
