@@ -1,77 +1,161 @@
-/*
-	The MIT License (MIT)
-
-	Copyright (c) 2016 Nefastor Online
-
-	Permission is hereby granted, free of charge, to any person obtaining a copy
-	of this software and associated documentation files (the "Software"), to deal
-	in the Software without restriction, including without limitation the rights
-	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-	copies of the Software, and to permit persons to whom the Software is
-	furnished to do so, subject to the following conditions:
-
-	The above copyright notice and this permission notice shall be included in all
-	copies or substantial portions of the Software.
-
-	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-	SOFTWARE.
-*/
-
-// change done in GitHub (directly on the web) and committed from GitHub
-// and now a second change.
-
-#include "esp_common.h"			// Includes a number of commonly-used header files
-
-#include "freertos/FreeRTOS.h"	// FreeRTOS core headers
-#include "freertos/task.h"
-
-#include "gpio.h"				// GPIO library
-
-// GPIO Constants, see pin_mux_register.h (SDK) included through esp_common.h
-#define LED_GPIO 		2		// ESP8266 GPIO pin number, NOT module D pin number
-#define LED_GPIO_MUX	PERIPHS_IO_MUX_GPIO2_U
-#define LED_GPIO_FUNC 	FUNC_GPIO2
-
-
 /******************************************************************************
- * FunctionName : blink_task
- * Description  : FreeRTOS-compliant task function
- * Parameters   : see FreeRTOS documentation
- * Returns      : nothing
+ * Copyright 2013-2014 Espressif Systems (Wuxi)
+ *
+ * FileName: user_main.c
+ *
+ * Description: entry file of user application
+ *
+ * Modification history:
+ *     2014/12/1, v1.0 create this file.
 *******************************************************************************/
 
-void ICACHE_FLASH_ATTR
-blink_task(void *pvParameters)
+/*
+	JRO : This project is an attempt to get the HSPI working in the RTOS
+	example project. If I can do that, then I can port my LCD library to this
+	example and use it with FreeRTOS.
+
+	Also, I don't want to mess with the makefile.
+
+	C:\Espressif\ESP8266_RTOS_SDK\include should contain everything I need and
+	is in the path for this project.
+
+
+*/
+
+
+#include "esp_common.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#include "lwip/sockets.h"
+#include "lwip/dns.h"
+#include "lwip/netdb.h"
+#include "lwip/udp.h"
+
+#include "ILI9341.h"
+
+// WiFi credentials : create and use your own file in C:\Espressif\ESP8266_RTOS_SDK\include
+#include "credentials.h"
+
+// it appears my LCD library isn't thread-safe :
+
+void task_lcd_1(void *pvParameters)
 {
-    uint8_t state = 0;							// Internal state of our LED pin
-    
-    while (1)
-    {
-    	state = 1 - state;						// Toggles between 0 and 1
-    	GPIO_OUTPUT_SET (LED_GPIO, state);		// gpio.h macro to set or clear a pin
-    	vTaskDelay (20);						// FreeRTOS delay function
-    }
+
+	int count = 1000;
+	portTickType start, end;
+
+	start = xTaskGetTickCount ();
+
+	while(count)
+	{
+		drawNumber(count--,0,48,4);
+		//vTaskDelay (1);
+		//os_delay_us(1000);	// works even with FreeRTOS it seems
+	}
+
+	end = xTaskGetTickCount ();
+
+	// display how many ticks this took.
+	drawNumber(end - start,0,160,4);
+
+	// Redo
+	count = 1000;
+
+	start = xTaskGetTickCount ();
+
+	while(count)
+	{
+		drawNumber(count--,0,80,7);
+		// vTaskDelay (2);
+		//os_delay_us(1000);	// works even with FreeRTOS it seems
+	}
+
+	end = xTaskGetTickCount ();
+
+	// display how many ticks this took.
+	drawNumber(end - start,0,200,4);
+
+	while (1);
+}
+
+void task_lcd_2(void *pvParameters)
+{
+	static int count = 0;
+
+	while(1)
+	{
+		count++;
+		drawNumber(count++,0,80,4);
+	}
+}
+
+void task_lcd_3(void *pvParameters)
+{
+	static int count = 0;
+
+	while(1)
+	{
+		count+=2;
+		drawNumber(count++,0,112,4);
+	}
+}
+
+void task_lcd_4(void *pvParameters)
+{
+	static int count = 0;
+
+	while(1)
+	{
+		count+=3;
+		drawNumber(count++,0,144,4);
+	}
 }
 
 /******************************************************************************
  * FunctionName : user_init
- * Description  : entry point of user code, the user's "main" function
+ * Description  : entry of user application, init user function here
  * Parameters   : none
- * Returns      : nothing
+ * Returns      : none
 *******************************************************************************/
 
-void ICACHE_FLASH_ATTR
-user_init(void)
+void user_init(void)
 {
-	// Multiplex the LED pin as GPIO
-	PIN_FUNC_SELECT(LED_GPIO_MUX, LED_GPIO_FUNC);
+	// go to 160 MHz
+	system_update_cpu_freq(160);
 
-	// Tell FreeRTOS to start the LED blink task
-    xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
+	// deactivate WiFi to prevent "pause" on boot.
+	wifi_set_opmode(NULL_MODE);
+
+	// Initialize TFT (also takes care of HSPI)
+	begin();
+
+	//os_delay_us (10000);	// maybe this could help
+	setRotation(0);	// 0-2 : portrait. 1-3 : landscape
+
+	//fillScreen(0xFFFF);
+	fillScreen(0x0000);
+
+	// JRO tests
+
+	// Let's try something simple : printing a string to the LCD
+	//drawString("JRO Test",0,0,2);
+	//drawString("JRO Test",0,16,4);
+
+
+    // The following nested call is based on using the return value of drawString directly
+    // drawString(system_get_sdk_version(),drawString("SDK version : ",0,0,2),0,2);
+	drawString("All Hail Nefastor !",0,16,2);
+//	drawString(" - nefastor.com -",0,112,4);
+
+    // FreeRTOS task creation : function, name, stack depth, parameter to function, priority, handle
+    // for more details : http://www.freertos.org/a00125.html
+    xTaskCreate(task_lcd_1, "tsk1", 256, NULL, 2, NULL); // try with different priority levels
+    //xTaskCreate(task_lcd_2, "tsk2", 256, NULL, 2, NULL);
+    //xTaskCreate(task_lcd_3, "tsk3", 256, NULL, 2, NULL);
+    //xTaskCreate(task_lcd_4, "tsk4", 256, NULL, 2, NULL);
+
+
 }
 
