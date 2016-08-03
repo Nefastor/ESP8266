@@ -3,6 +3,7 @@
 # Root Level Makefile ESP8266 + RTOS
 #
 # (c) by CHERTS <sleuthhound@gmail.com>
+# Modified by Nefastor
 #
 #############################################################
 
@@ -20,9 +21,10 @@ SDK_TOOLS	?= c:/Espressif/utils
 
 # esptool path and port
 ESPTOOL ?= $(SDK_TOOLS)/esptool.exe
+# COM port
 ESPPORT ?= COM5
-# Baud rate for programmer
-BAUD ?= 921600
+# Baud rate
+BAUD ?= 912600
 
 # SPI_SPEED = 40, 26, 20, 80
 SPI_SPEED ?= 40
@@ -118,12 +120,15 @@ endif
 TARGET		= app
 
 # which modules (subdirectories) of the project to include in compiling
-MODULES	= user libraries
-EXTRA_INCDIR = include libraries
+MODULES	= user libraries/GPIO libraries/HSPI libraries/ILI9341
+#HSPI ILI9341
+EXTRA_INCDIR = include
 
-#LIBS       = cirom gccirom hal phy pp net80211 wpa main freertos lwip udhcp
+#LIBS       = cirom gccirom hal phy pp net80211 wpa main freertos lwip
+# note : udhcp is a DHCP server, it is not part of the SDK I'm using
+
 # linking libgccirom.a instead of libgcc.a causes reset when working with flash memory (ie spi_flash_erase_sector)
-LIBS		= gcc hal phy pp net80211 wpa crypto main freertos lwip minic smartconfig
+LIBS		= gcc hal phy pp net80211 wpa crypto main freertos lwip minic
 
 # compiler flags using during compilation of source files
 CFLAGS		= -g -save-temps -std=gnu90 -Os -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals -mno-serialize-volatile -D__ets__ -DICACHE_FLASH
@@ -138,7 +143,8 @@ LD_SCRIPT	= eagle.app.v6.ld
 # various paths from the SDK used in this project
 SDK_LIBDIR	= lib
 SDK_LDDIR	= ld
-SDK_INCDIR	= extra_include include include/espressif include/json include/udhcp include/lwip include/lwip/lwip include/lwip/ipv4 include/lwip/ipv6
+SDK_INCDIR	= extra_include include include/espressif include/json include/lwip include/lwip/lwip include/lwip/ipv4 include/lwip/ipv6
+#include/udhcp 
 
 # select which tools to use as compiler, librarian and linker
 CC		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
@@ -205,7 +211,12 @@ $(TARGET_OUT): $(APP_AR)
 	$(vecho) "Generate 0x00000.bin and 0x40000.bin successully in folder $(FW_BASE)."
 	$(vecho) "0x00000.bin-------->0x00000"
 	$(vecho) "0x40000.bin-------->0x40000"
+#JRO adding some clean-up to the project's root.	
+	rm -f ./*.i
+	rm -f ./*.s
 	$(vecho) "Done"
+	
+	
 
 $(APP_AR): $(OBJ)
 	$(vecho) "AR $@"
@@ -260,6 +271,8 @@ flashinit:
 		0x3fe000 $(SDK_BASE)/bin/blank.bin
 
 rebuild: clean all
+	$(Q) rm -f *.i
+	$(Q) rm -f *.s
 
 clean:
 	$(Q) rm -f $(APP_AR)
