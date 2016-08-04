@@ -117,21 +117,8 @@ typedef struct {
     GPIO_INT_TYPE    GPIO_IntrType; /**< GPIO interrupt type */
 } GPIO_ConfigTypeDef;
 
-/** \defgroup Driver_APIs Driver APIs
-  * @brief Driver APIs
-  */
-
-/** @addtogroup Driver_APIs
-  * @{
-  */
-
-/** \defgroup GPIO_Driver_APIs GPIO Driver APIs
-  * @brief GPIO APIs
-  */
-
-/** @addtogroup GPIO_Driver_APIs
-  * @{
-  */
+// Macro to enable GPIO interrupts
+#define ETS_GPIO_INTR_ENABLE() _xt_isr_unmask ((1 << ETS_GPIO_INUM))
 
 /**  
   * @brief   Set GPIO pin output level.
