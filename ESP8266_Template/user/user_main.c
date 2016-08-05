@@ -1,25 +1,22 @@
 /******************************************************************************
- * Copyright 2013-2014 Espressif Systems (Wuxi)
+ * Copyright 2016 Nefastor Online (nefastor.com)
  *
  * FileName: user_main.c
  *
  * Description: entry file of user application
  *
- * Modification history:
- *     2014/12/1, v1.0 create this file.
+ * This version demonstrates the ILI9341 LCD controller library
+ *
+ * Full article and hardware schematics at :
+ *
+ * www.nefastor.com/esp8266-ili9341-lcd-library
+ *
 *******************************************************************************/
 
 /*
-	JRO : This project is an attempt to get the HSPI working in the RTOS
+	Nefastor : This project is an attempt to get the HSPI working in the RTOS
 	example project. If I can do that, then I can port my LCD library to this
 	example and use it with FreeRTOS.
-
-	Also, I don't want to mess with the makefile.
-
-	C:\Espressif\ESP8266_RTOS_SDK\include should contain everything I need and
-	is in the path for this project.
-
-
 */
 
 
@@ -36,9 +33,7 @@
 #include "ILI9341.h"
 
 // WiFi credentials : create and use your own file in C:\Espressif\ESP8266_RTOS_SDK\include
-#include "credentials.h"
-
-// it appears my LCD library isn't thread-safe :
+// #include "credentials.h"
 
 void task_lcd_1(void *pvParameters)
 {
@@ -83,28 +78,41 @@ void task_lcd_1(void *pvParameters)
 void task_lcd_2(void *pvParameters)
 {
 	int color = 0;
-	//textcolor = 0;
+
+	drawString("All Hail Nefastor !",0,16,2);
 
 	while(1)
 	{
 		color++;
-		if (color > 262144)
+		if (color > 374)
 			color = 0;
 
-		setTextColor (color);
-		//drawNumber(color,0,160,6);
+		setTextColor (color * 700);
 		drawString(" - nefastor.com -",0,112,4);
+		vTaskDelay (100);
+		setTextColor (0);	// black
+		drawString(" - nefastor.com -",0,112,4);
+		vTaskDelay (100);
 	}
 }
 
 void task_lcd_3(void *pvParameters)
 {
-	static int count = 0;
+	int color = 0;
 
 	while(1)
 	{
-		count+=2;
-		drawNumber(count++,0,112,4);
+		color++;
+		if (color > 650)
+			color = 0;
+
+		setTextColor (0);	// black
+		drawString(" - nefastor.com -",0,160,4);
+		vTaskDelay (100);
+		setTextColor (color * 400);
+		drawString(" - nefastor.com -",0,160,4);
+		vTaskDelay (100);
+
 	}
 }
 
@@ -128,38 +136,35 @@ void task_lcd_4(void *pvParameters)
 
 void user_init(void)
 {
-	// go to 160 MHz
+	// Go to 160 MHz
 	system_update_cpu_freq(160);
 
-	// deactivate WiFi to prevent "pause" on boot.
+	// Deactivate WiFi to prevent "pause" on boot and save the planet. I mean power.
 	wifi_set_opmode(NULL_MODE);
 
 	// Initialize TFT (also takes care of HSPI)
 	begin();
 
-	//os_delay_us (10000);	// maybe this could help
 	setRotation(0);	// 0-2 : portrait. 1-3 : landscape
 
-	//fillScreen(0xFFFF);
-	fillScreen(0x0000);
+	//fillScreen(0xFFFF);	// make the screen white
+	fillScreen(0x0000);		// make the screen black
 
-	// JRO tests
+	// Simple tests
 
 	// Let's try something simple : printing a string to the LCD
-	//drawString("JRO Test",0,0,2);
-	//drawString("JRO Test",0,16,4);
+	//drawString("Test",0,0,2);
+	//drawString("Test",0,16,4);
 
 
     // The following nested call is based on using the return value of drawString directly
     // drawString(system_get_sdk_version(),drawString("SDK version : ",0,0,2),0,2);
-	drawString("All Hail Nefastor !",0,16,2);
-//	drawString(" - nefastor.com -",0,112,4);
 
     // FreeRTOS task creation : function, name, stack depth, parameter to function, priority, handle
     // for more details : http://www.freertos.org/a00125.html
     //xTaskCreate(task_lcd_1, "tsk1", 256, NULL, 2, NULL); // try with different priority levels
     xTaskCreate(task_lcd_2, "tsk2", 256, NULL, 2, NULL);
-    //xTaskCreate(task_lcd_3, "tsk3", 256, NULL, 2, NULL);
+    xTaskCreate(task_lcd_3, "tsk3", 256, NULL, 1, NULL);
     //xTaskCreate(task_lcd_4, "tsk4", 256, NULL, 2, NULL);
 
 
