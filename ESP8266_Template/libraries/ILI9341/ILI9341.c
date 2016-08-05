@@ -91,12 +91,6 @@ ICACHE_FLASH_ATTR void begin (void)
 	// Initialize the GPIO pin that will drive the ILI9341's command / data signal
 	TFT_DC_INIT;
 
-	// 10 ms pause to let the display initialize
-	//ct = 400000;	// a 10ms delay is required now. Try to find a better delay implementation
-	//while(ct--);
-
-	// os_delay_us(10000);
-
 	uint8_t data[15] = {0};
 
 	// Power Control A
@@ -220,20 +214,11 @@ ICACHE_FLASH_ATTR void begin (void)
 	data[12] = 0x31;
 	data[13] = 0x36;
 	data[14] = 0x0F;
-	transmitCmdDataBuf(0xE1, data, 15);    	//Set Gamma
+	transmitCmdDataBuf(0xE1, data, 15);    	// Set Gamma
 
-	transmitCmd(0x11);    	//Exit Sleep
-	// The following delay is optimized out at compilation. Have the loop do something
-	//ct = 4000000;	// a 120ms delay is required now. Try to find a better delay implementation
-	//while(ct--);
+	transmitCmd(0x11);
 
-	// "better" delay ?
-	// FUCK - STILL NO EFFECT !
-	// ct = 4000000;	// a 120ms delay is required now. Try to find a better delay implementation
-
-	// os_delay_us(120000);
-
-	transmitCmd(0x29);    //Display on
+	transmitCmd(0x29);    // Display on
 	transmitCmd(0x2c);
 
 
@@ -242,9 +227,9 @@ ICACHE_FLASH_ATTR void begin (void)
 /* The following function is very generic and slow. Try to avoid using it*/
 void drawPixel(int16_t x, int16_t y, uint16_t color) {
 
-	// JRO : the following safety test reduces performance.
+	// Nefastor : the following safety test reduces performance.
 	if((x < 0) ||(x >= _width) || (y < 0) || (y >= _height)) return;
-	// JRO : if this safety is relied upon, find something else, such as:
+	// if this safety is relied upon, find something else, such as:
 	// - moving to unsigned arguments
 	// - bounding the arguments with bitwise logical functions
 	// I'm guessing this test is necessary because of geometric functions that don't perform it themselves.
@@ -282,12 +267,6 @@ ICACHE_FLASH_ATTR void fillScreen(uint16_t color) {
 // fill a rectangle
 void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
 {
-	// rudimentary clipping (drawChar w/big text requires this)
-	// JRO : NOPE, since drawChar doesn't clear pixels before writing...
-	// if((x >= _width) || (y >= _height)) return;
-	// if((x + w - 1) >= _width)  w = _width  - x;
-	// if((y + h - 1) >= _height) h = _height - y;
-
 	setAddrWindow(x, y, x+w-1, y+h-1);
 	hspi_send_uint16_r(color, h*w);	// multiply is unavoidable here : a call loop would cost more
 }
@@ -342,7 +321,7 @@ void invertDisplay(bool i)
 ICACHE_FLASH_ATTR int drawUnicode(uint16_t uniCode, uint16_t x, uint16_t y, uint8_t size)
 {
 
-	// JRO : the following tests reduce performance. Single-font functions might be faster
+	// Nefastor : the following tests reduce performance. Single-font functions might be faster
 	// Or maybe use const arrays indexed by the "size" argument to initialize the variables
 
 	uniCode -= 32;		// The first 32 character codes are non-printable
@@ -387,21 +366,15 @@ ICACHE_FLASH_ATTR int drawUnicode(uint16_t uniCode, uint16_t x, uint16_t y, uint
 			break;
 	}
 
-	//uint16_t w = (width+ 7) / 8; // why ? also, a DIVISION BY EIGHT ???
-	uint16_t w = (width + 7) >> 3;	// +8 seems to work too.
-	// consider this : 7 is "111" binary, >>3 will disappear those.
-	// all that's going to be left is a carry.
+	uint16_t w = (width + 7) >> 3;
+	// consider this : 7 is "111" binary, >>3 will disappear those...
+	// ... and all that's going to be left is a carry.
 
 	uint16_t color   = 0;
 	uint8_t line = 0;
 
 	// First, set the window directly to the full size of the character, to benefit from self-incrementation
 	setAddrWindow(x,y,x+width-1,y+height); // -1 necessary to convert width into limit (n pixels range is from 0 to n-1)
-
-	// Thought experiment :
-	//int rounded_width = ((width >> 3) << 3);
-	//if (rounded_width == 0) rounded_width = 1;
-	//jro_setaddrwin(x,y,x+rounded_width,y+height);
 
 	int ii = 0;		// ii counts in bytes of pixels on a given line
 	int i;			// i counts in lines of pixels
@@ -413,7 +386,7 @@ ICACHE_FLASH_ATTR int drawUnicode(uint16_t uniCode, uint16_t x, uint16_t y, uint
 		{
 			// This can probably be further optimized.
 			line = *(flash_address + ii + k);
-			// optimization 1 : leave the loop as soon as "wid" == 0 !
+			// optimization 1 : leave the loop as soon as "wid" == 0
 			if (wid-- == 0) break;
 				if(line & 0x80) transmitData(textcolor); else transmitData(textbgcolor);
 			if (wid-- == 0) break;
@@ -455,11 +428,8 @@ ICACHE_FLASH_ATTR int drawUnicode(uint16_t uniCode, uint16_t x, uint16_t y, uint
 	// at this point I should add some horizontal spacing.
 	if (spacing)
 	{
-		setAddrWindow(x+width, y, x+width ,y+height);	// blank space
-		//int count = height;	// total pixels in the window (which is one pixel wide)
-		//while (count--)
-		//	transmitData(textbgcolor);	// blank the pixel.
-		hspi_send_uint16_r(textbgcolor, height);	// even faster
+		setAddrWindow(x+width, y, x+width ,y+height);	// blank space : a column of pixels
+		hspi_send_uint16_r(textbgcolor, height);	   // clear it
 	}
 
 	return width + spacing;  // returns the width displayed, in pixels (useful for displaying strings)
@@ -516,20 +486,28 @@ void setTextColor (uint16_t newColor)
 		textcolor = newColor;
 }
 
-/*
+
 // Draw a rectangle
-void drawRect(int16_t x, int16_t y,
-		int16_t w, int16_t h,
-		uint16_t color) {
+//
+void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
+{
 	drawFastHLine(x, y, w, color);
 	drawFastHLine(x, y+h-1, w, color);
 	drawFastVLine(x, y, h, color);
 	drawFastVLine(x+w-1, y, h, color);
+
+	// possible optimization : this code overwrites the corner pixels.
+	// solution : shorten the lines.
 }
-*/
+
+/* Nefastor : TO DO : Bresenham line algo
+ * Optimization idea : reduce the number of coordinate settings on line segments
+ * longer than one pixels, to save on SPI bandwidth
+ * Take inspiration from the drawFastHLine and drawFastVLine functions.
+ * */
 
 
-// JRO - THIS ONE SHOULD BE PORTED FIRST
+// Nefastor - Port this, it looks interesting
 /*
 void Adafruit_GFX_AS::drawBitmap(int16_t x, int16_t y,
 		const uint16_t *bitmap, int16_t w, int16_t h) {

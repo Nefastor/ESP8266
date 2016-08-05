@@ -74,7 +74,7 @@
 #define MADCTL_BGR 0x08
 #define MADCTL_MH  0x04
 
-// Color definitions. Swapped by JRO to remove the stupid byte-swap macro
+// Color definitions. Swapped by Nefastor to remove a stupid byte-swap macro
 #define	ILI9341_BLACK   0x0000
 #define	ILI9341_BLUE    0x1F00	// 0x001F
 #define	ILI9341_RED     0x00F8	// 0xF800
@@ -116,9 +116,7 @@
   int drawNumber(long long_num,uint16_t poX, uint16_t poY, uint8_t size);
   int drawString(const char *string, uint16_t poX, uint16_t poY, uint8_t size);
 
-  void drawRect(int16_t x, int16_t y,
-  		int16_t w, int16_t h,
-  		uint16_t color);
+  void drawRect(int16_t x, int16_t y, int16_t w, int16_t h,	uint16_t color);
 
   void setTextColor (uint16_t newColor);
 
