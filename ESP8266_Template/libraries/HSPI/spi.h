@@ -25,11 +25,17 @@
 #ifndef SPI_APP_H
 #define SPI_APP_H
 
-#include "spi_register.h"
-#include "ets_sys.h"
-#include "osapi.h"
+// Nefastor : replaced the includes with those copasetic with my own environment
+
+#include <c_types.h> //#include "os_type.h"
+
+#include <esp8266/esp8266.h>	// This includes the SDK's "spi_register.h" header
+//#include "spi_register.h"
+//#include "ets_sys.h"
+//#include "osapi.h"
 //#include "uart.h"
-#include "os_type.h"
+
+
 
 //Define SPI hardware modules
 #define SPI 0

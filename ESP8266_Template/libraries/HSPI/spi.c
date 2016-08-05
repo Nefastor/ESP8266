@@ -23,7 +23,7 @@
 */
 
 
-#include "driver/spi.h"
+#include "spi.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,10 +69,11 @@ void spi_mode(uint8 spi_no, uint8 spi_cpha,uint8 spi_cpol){
 		SET_PERI_REG_MASK(SPI_USER(spi_no), SPI_CK_OUT_EDGE);
 	}
 
+	// Nefastor : it looks like this next bit uses a differently named macro... replacing with likely suspect
 	if (spi_cpol) {
-		SET_PERI_REG_MASK(SPI_PIN(spi_no), SPI_IDLE_EDGE);
+		SET_PERI_REG_MASK(SPI_PIN(spi_no), SPI_CK_I_EDGE);  // SPI_IDLE_EDGE
 	} else {
-		CLEAR_PERI_REG_MASK(SPI_PIN(spi_no), SPI_IDLE_EDGE);
+		CLEAR_PERI_REG_MASK(SPI_PIN(spi_no), SPI_CK_I_EDGE); // SPI_IDLE_EDGE
 	}
 }
 
