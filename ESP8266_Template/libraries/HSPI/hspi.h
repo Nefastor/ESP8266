@@ -10,6 +10,7 @@
 // This is for the raw clock into the SPI controller
 // set at 1 it should mean that the SPI runs at the same speed as the CPU core
 #define HSPI_PRESCALER 1	// actually 1 might be a tad too fast for ILI9341
+// The ILI9341 datasheet rates SCLK at 10 MHz but much faster actual frequencies are known to work
 
 #include <gpio.h>	// this was only included for one macro, which I duplicated here :
 // Update : I've created my own GPIO header so I can use it now.
