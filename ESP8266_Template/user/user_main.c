@@ -82,12 +82,18 @@ void task_lcd_1(void *pvParameters)
 
 void task_lcd_2(void *pvParameters)
 {
-	static int count = 0;
+	int color = 0;
+	//textcolor = 0;
 
 	while(1)
 	{
-		count++;
-		drawNumber(count++,0,80,4);
+		color++;
+		if (color > 262144)
+			color = 0;
+
+		setTextColor (color);
+		//drawNumber(color,0,160,6);
+		drawString(" - nefastor.com -",0,112,4);
 	}
 }
 
@@ -151,8 +157,8 @@ void user_init(void)
 
     // FreeRTOS task creation : function, name, stack depth, parameter to function, priority, handle
     // for more details : http://www.freertos.org/a00125.html
-    xTaskCreate(task_lcd_1, "tsk1", 256, NULL, 2, NULL); // try with different priority levels
-    //xTaskCreate(task_lcd_2, "tsk2", 256, NULL, 2, NULL);
+    //xTaskCreate(task_lcd_1, "tsk1", 256, NULL, 2, NULL); // try with different priority levels
+    xTaskCreate(task_lcd_2, "tsk2", 256, NULL, 2, NULL);
     //xTaskCreate(task_lcd_3, "tsk3", 256, NULL, 2, NULL);
     //xTaskCreate(task_lcd_4, "tsk4", 256, NULL, 2, NULL);
 
