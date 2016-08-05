@@ -120,5 +120,6 @@
   		int16_t w, int16_t h,
   		uint16_t color);
 
+  void setTextColor (uint16_t newColor);
 
 #endif

@@ -510,6 +510,12 @@ ICACHE_FLASH_ATTR int drawString(const char *string, uint16_t poX, uint16_t poY,
 	return sumX;
 }
 
+// NEW : set text color
+void setTextColor (uint16_t newColor)
+{
+		textcolor = newColor;
+}
+
 /*
 // Draw a rectangle
 void drawRect(int16_t x, int16_t y,
