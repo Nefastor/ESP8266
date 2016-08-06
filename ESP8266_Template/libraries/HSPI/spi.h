@@ -52,8 +52,8 @@
 #endif
 
 //Define some default SPI clock settings
-#define SPI_CLK_PREDIV 0// 10	Nefastor : this is the value in the repo
-#define SPI_CLK_CNTDIV 1 // 2
+#define SPI_CLK_PREDIV 4// 10	Nefastor : this is the value in the repo
+#define SPI_CLK_CNTDIV 2 // 2
 #define SPI_CLK_FREQ CPU_CLK_FREQ/(SPI_CLK_PREDIV*SPI_CLK_CNTDIV) // 80 / 20 = 4 MHz
 
 

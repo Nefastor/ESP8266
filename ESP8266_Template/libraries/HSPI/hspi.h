@@ -49,7 +49,11 @@ void hspi_send_uint16_r(const uint16_t data, int32_t repeats);
 #define hspi_enable_80Mhz	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x305)
 #define hspi_enable_prediv	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x105)
 
-//inline void hspi_init_gpio (void);
+#define HSPI_FIFO ((uint32_t*) SPI_W0(HSPI))	// for use as an array in repeat transfer
+//0x60000140
+
+
+inline void hspi_init_gpio (void);
 
 
 

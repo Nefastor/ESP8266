@@ -99,10 +99,14 @@ ICACHE_FLASH_ATTR void begin (void)
 	unsigned int ct;	// delay loop index
 
 	// Setup communication using HSPI
-	//hspi_init();
+	hspi_init();
 
-	spi_fifo = (uint32_t*)SPI_W0(HSPI);	// done in hspi.c but not in spi.c
-	spi_init(HSPI);
+	// decomposed version of the above
+	//hspi_enable_80Mhz;
+	//hspi_init_gpio();
+
+	//spi_fifo = (uint32_t*)SPI_W0(HSPI);	// done in hspi.c but not in spi.c
+	//spi_init(HSPI);
 
 	// Initialize the GPIO pin that will drive the ILI9341's command / data signal
 	TFT_DC_INIT;

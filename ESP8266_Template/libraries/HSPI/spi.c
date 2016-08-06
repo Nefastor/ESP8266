@@ -39,13 +39,15 @@ void spi_init(uint8 spi_no){
 	
 	// if(spi_no > 1) return; //Only SPI and HSPI are valid spi modules.
 
+	//spi_init_gpio(spi_no, SPI_CLK_USE_DIV);
+	// //spi_init_gpio(HSPI,SPI_CLK_80MHZ_NODIV);
+	//hspi_enable_80Mhz;
+	hspi_init_gpio();
+	hspi_enable_80Mhz;
+
 	spi_clock(spi_no, SPI_CLK_PREDIV, SPI_CLK_CNTDIV);
 	//hspi_enable_80Mhz;
 	//hspi_enable_prediv;
-
-	spi_init_gpio(spi_no, SPI_CLK_USE_DIV);
-	//spi_init_gpio(HSPI,SPI_CLK_80MHZ_NODIV);
-	//hspi_init_gpio();
 
 	//spi_tx_byte_order(spi_no, SPI_BYTE_ORDER_HIGH_TO_LOW);
 	//spi_rx_byte_order(spi_no, SPI_BYTE_ORDER_HIGH_TO_LOW);

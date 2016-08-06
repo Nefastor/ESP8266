@@ -21,11 +21,12 @@
 
 
 
-uint32_t *spi_fifo;		// pointer to the first SPI data register : SPI_W0(HSPI)
+// uint32_t *spi_fifo;		// pointer to the first SPI data register : SPI_W0(HSPI)
+// uint32_t *spi_fifo = (uint32_t*) SPI_W0(HSPI);	// direct init from constant is OK
 
 void hspi_init(void)
 {
-	spi_fifo = (uint32_t*)SPI_W0(HSPI);
+	//spi_fifo = (uint32_t*)SPI_W0(HSPI);
 /*
 	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x105); //clear bit9 => why ?
 	// answer : setting this bit meas SPI uses 80 MHz sys clock.
@@ -37,10 +38,11 @@ void hspi_init(void)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); // CLK GPIO14
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); // CS GPIO15
 */
+	hspi_enable_80Mhz;
 
 	// both work with ILI8341 but I don't know the real SCLK frequency.
-	spi_init_gpio(HSPI,SPI_CLK_USE_DIV);
-	// spi_init_gpio(HSPI,SPI_CLK_80MHZ_NODIV);
+	//spi_init_gpio(HSPI,SPI_CLK_USE_DIV);
+	spi_init_gpio(HSPI,SPI_CLK_80MHZ_NODIV);
 	//hspi_init_gpio();
 
 	// Nefastor : a bit of research :
@@ -76,7 +78,7 @@ void hspi_init(void)
 	// spi_tx_byte_order(HSPI, SPI_BYTE_ORDER_HIGH_TO_LOW);
 	// spi_rx_byte_order(HSPI, SPI_BYTE_ORDER_HIGH_TO_LOW);
 	spi_tx_byte_order(HSPI, SPI_BYTE_ORDER_LOW_TO_HIGH);	// ILI9341 works like this
-	spi_rx_byte_order(HSPI, SPI_BYTE_ORDER_LOW_TO_HIGH);
+	spi_rx_byte_order(HSPI, SPI_BYTE_ORDER_LOW_TO_HIGH);	// this is the default order, by the way
 }
 
 // Send the same 16-bit value multiple times.
@@ -104,7 +106,8 @@ void hspi_send_uint16_r(uint16_t data, int32_t repeats)
 		{
 			// inner loop to fill the HSPI FIFO (up to SPIFIFOSIZE words of 32 bits)
 			repeats -= 2;	// because I'm sending two words at once
-			spi_fifo[i++] = word;
+			// spi_fifo[i++] = word;
+			HSPI_FIFO[i++] = word;
 		}
 
 		// perform the transfer : (hspi_prepare_tx(bts)) and send :
@@ -126,7 +129,7 @@ void hspi_send_data(const uint8_t * data, int8_t datasize)
 
 	while (datasize > 0)	// because this will go negative if datasize % 4 != 0
 	{
-		spi_fifo[i++] = *_data++;
+		HSPI_FIFO[i++] = *_data++;
 		datasize -= 4;	// because I'm sending 4 bytes at a time
 
 		// If FIFO overflow is an issue (shouldn't be !)
@@ -157,7 +160,7 @@ inline void hspi_send_uint8(uint8_t data)
 {
 	// hspi_prepare_tx(1);
 	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 7) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
-	*spi_fifo = data;
+	*HSPI_FIFO = data;
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
 
@@ -166,7 +169,7 @@ inline void hspi_send_uint16(uint16_t data)
 	//hspi_prepare_tx(2);
 	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 15) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
 
-	*spi_fifo = data;
+	*HSPI_FIFO = data;
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
 
@@ -175,7 +178,7 @@ inline void hspi_send_uint32(uint32_t data)
 	// hspi_prepare_tx(4);
 	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 31) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
 
-	*spi_fifo = data;
+	*HSPI_FIFO = data;
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
 
@@ -188,10 +191,10 @@ inline void hspi_send_uint32(uint32_t data)
 inline void hspi_init_gpio (void)
 {
 	// Set pin muxing for HSPI
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); // HSPIQ MISO GPIO12
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); // HSPID MOSI GPIO13
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); // CLK GPIO14
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); // CS GPIO15
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); //GPIO12 is HSPI MISO pin (Master Data In)
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); //GPIO13 is HSPI MOSI pin (Master Data Out)
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); //GPIO14 is HSPI CLK pin (Clock)
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); //GPIO15 is HSPI CS pin (Chip Select / Slave Select)
 }
 
 
