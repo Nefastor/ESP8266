@@ -42,4 +42,17 @@ void hspi_send_data(const uint8_t * data, int8_t datasize);
 
 void hspi_send_uint16_r(const uint16_t data, int32_t repeats);
 
+/*
+ * NEFASTOR - new configuration macros
+ */
+
+#define hspi_enable_80Mhz	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x305)
+#define hspi_enable_prediv	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x105)
+
+//inline void hspi_init_gpio (void);
+
+
+
+
+
 #endif /* INCLUDE_HSPI_H_ */

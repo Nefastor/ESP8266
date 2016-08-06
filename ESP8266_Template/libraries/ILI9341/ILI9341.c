@@ -32,8 +32,11 @@ uint16_t	textbgcolor = 0x0000;
  // Transmit 16 bits. Typically used to send pixel data (16-bit colors)
 inline void transmitData(uint16_t data)
 {
-	//hspi_wait_ready();
-	hspi_send_uint16(data);
+	// hspi_wait_ready();
+	// hspi_send_uint16(data);
+
+	// replacing with spi.c call :
+	spi_tx16(HSPI, data);
 }
 
 // actually this isn't used anymore
@@ -53,7 +56,8 @@ inline void transmitCmd(uint8_t cmd)
 	// first wait may be unnecessary because shorter than a function call start
 	//hspi_wait_ready();
 	TFT_DC_COMMAND;
-	hspi_send_uint8(cmd);
+	//hspi_send_uint8(cmd);
+	spi_tx8(HSPI, cmd);
 	hspi_wait_ready();		// this one is vital
 	TFT_DC_DATA;	// put it there because there may be multiple data transfers next
 }
@@ -61,22 +65,31 @@ inline void transmitCmd(uint8_t cmd)
 inline void setAddrWindow (uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
 	transmitCmd (ILI9341_CASET);
-	hspi_send_uint8(x0 >> 8);
+	/*hspi_send_uint8(x0 >> 8);
 	hspi_send_uint8(x0 & 0xFF);
 	hspi_send_uint8(x1 >> 8);
-	hspi_send_uint8(x1 & 0xFF);
+	hspi_send_uint8(x1 & 0xFF);*/
+	spi_tx8(HSPI,x0 >> 8);
+	spi_tx8(HSPI,x0 & 0xFF);
+	spi_tx8(HSPI,x1 >> 8);
+	spi_tx8(HSPI,x1 & 0xFF);
 	transmitCmd (ILI9341_PASET);
-	hspi_send_uint8(y0 >> 8);
+	/*hspi_send_uint8(y0 >> 8);
 	hspi_send_uint8(y0 & 0xFF);
 	hspi_send_uint8(y1 >> 8);
-	hspi_send_uint8(y1 & 0xFF);
+	hspi_send_uint8(y1 & 0xFF);*/
+	spi_tx8(HSPI,y0 >> 8);
+	spi_tx8(HSPI,y0 & 0xFF);
+	spi_tx8(HSPI,y1 >> 8);
+	spi_tx8(HSPI,y1 & 0xFF);
 	transmitCmd (ILI9341_RAMWR); // write to RAM : 16-bit pixel colors can be written right after this function returns
 }
 
 void transmitCmdDataBuf (uint8_t cmd, const uint8_t *data, uint8_t numDataByte)
 {
 	TFT_DC_COMMAND;
-	hspi_send_uint8(cmd);
+	// hspi_send_uint8(cmd);
+	spi_tx8(HSPI,cmd);
 	TFT_DC_DATA;
 	hspi_send_data(data, numDataByte);
 }
@@ -86,7 +99,10 @@ ICACHE_FLASH_ATTR void begin (void)
 	unsigned int ct;	// delay loop index
 
 	// Setup communication using HSPI
-	hspi_init();
+	//hspi_init();
+
+	spi_fifo = (uint32_t*)SPI_W0(HSPI);	// done in hspi.c but not in spi.c
+	spi_init(HSPI);
 
 	// Initialize the GPIO pin that will drive the ILI9341's command / data signal
 	TFT_DC_INIT;

@@ -1,4 +1,5 @@
 #include "hspi.h"
+#include "spi.c"
 
 /*
 	JRO : This library controls the HSPI (Hardware SPI) controller of the ESP8266.
@@ -25,28 +26,57 @@ uint32_t *spi_fifo;		// pointer to the first SPI data register : SPI_W0(HSPI)
 void hspi_init(void)
 {
 	spi_fifo = (uint32_t*)SPI_W0(HSPI);
-
+/*
 	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x105); //clear bit9 => why ?
+	// answer : setting this bit meas SPI uses 80 MHz sys clock.
+    // by clearing it, the prescaler is used.
 
 	// Set pin muxing for HSPI
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); // HSPIQ MISO GPIO12
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); // HSPID MOSI GPIO13
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); // CLK GPIO14
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); // CS GPIO15
+*/
+
+	// both work with ILI8341 but I don't know the real SCLK frequency.
+	spi_init_gpio(HSPI,SPI_CLK_USE_DIV);
+	// spi_init_gpio(HSPI,SPI_CLK_80MHZ_NODIV);
+	//hspi_init_gpio();
+
+	// Nefastor : a bit of research :
+	/* HSPI_PRESCALER == 1
+	 * I set clock cycle to 1, clock high for 0 cycle (somehow), clock low for 1 cycle
+	 * In spi.c, MP sets clock low for 0 cycle (always) clock high for half of "cntdiv", which
+	 * is set to 2 by default.
+	 * So his settings are : SCLK period 2 cycle, high 1 cycle, low 0 cycle
+	 * and my settings are : SCLK period 1 cycle, high 0 cycle, low 1 cycle
+	 */
 
 	// Set SCLK frequency and duty cycle
+	/*
 	WRITE_PERI_REG(SPI_CLOCK(HSPI),
 	   (((HSPI_PRESCALER - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
 	   ((1 & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
 	   ((0 & SPI_CLKCNT_H) << SPI_CLKCNT_H_S) |  // SCLK high for zero cycle ??? => tried 1, nothing works.
 	   ((1 & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for one cycle
+	   */
 
-	WRITE_PERI_REG(SPI_CTRL1(HSPI), 0);	// why ?
+	// the following is not done in spi.c : superfluous ?
+	// WRITE_PERI_REG(SPI_CTRL1(HSPI), 0);	// why ?
 
-	// TO DO : explain what this does :
+	// TO DO : explain what this does : (spi.c doesn't do it... yet it is necessary)
+	// ANSWERS : enables / disables specific phases of an SPI command / transaction
+	// not necessary if using spi.c "transaction" function, which manages those bits
+	/*
 	uint32_t regvalue = SPI_USR_MOSI;
     regvalue &= ~(BIT2 | SPI_USR_ADDR | SPI_USR_DUMMY | SPI_USR_MISO | SPI_USR_COMMAND | SPI_DOUTDIN);
 	WRITE_PERI_REG(SPI_USER(HSPI), regvalue);
+	*/
+
+	// spi_tx_byte_order(HSPI, SPI_BYTE_ORDER_HIGH_TO_LOW);
+	// spi_rx_byte_order(HSPI, SPI_BYTE_ORDER_HIGH_TO_LOW);
+	spi_tx_byte_order(HSPI, SPI_BYTE_ORDER_LOW_TO_HIGH);	// ILI9341 works like this
+	spi_rx_byte_order(HSPI, SPI_BYTE_ORDER_LOW_TO_HIGH);
 }
 
 // Send the same 16-bit value multiple times.
@@ -148,4 +178,20 @@ inline void hspi_send_uint32(uint32_t data)
 	*spi_fifo = data;
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
+
+/* NEFASTOR - IN PROGRESS :
+ *
+ * I'm going to implement functions similar to spi.c for setting up the HSPI
+ *
+ */
+
+inline void hspi_init_gpio (void)
+{
+	// Set pin muxing for HSPI
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); // HSPIQ MISO GPIO12
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); // HSPID MOSI GPIO13
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); // CLK GPIO14
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); // CS GPIO15
+}
+
 
