@@ -22,12 +22,14 @@ SDK_TOOLS	?= c:/Espressif/utils
 # esptool path and port
 ESPTOOL ?= $(SDK_TOOLS)/esptool.exe
 # COM port
-ESPPORT ?= COM5
+ESPPORT ?= COM6
 # Baud rate
 BAUD ?= 912600
 
 # SPI_SPEED = 40, 26, 20, 80
-SPI_SPEED ?= 40
+SPI_SPEED ?= 80
+#SPI_SPEED ?= 40	ORIGINAL VALUE
+
 # SPI_MODE: qio, qout, dio, dout
 SPI_MODE ?= qio
 # SPI_SIZE_MAP

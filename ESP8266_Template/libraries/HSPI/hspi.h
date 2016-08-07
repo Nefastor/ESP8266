@@ -12,6 +12,9 @@
 #define HSPI_PRESCALER 1	// actually 1 might be a tad too fast for ILI9341
 // The ILI9341 datasheet rates SCLK at 10 MHz but much faster actual frequencies are known to work
 
+#define HSPI_DIVIDER 4
+
+
 #include <gpio.h>	// this was only included for one macro, which I duplicated here :
 // Update : I've created my own GPIO header so I can use it now.
 //#define GPIO_OUTPUT_SET(gpio_no, bit_value) \
@@ -50,13 +53,46 @@ void hspi_send_uint16_r(const uint16_t data, int32_t repeats);
 #define hspi_enable_prediv	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x105)
 
 #define HSPI_FIFO ((uint32_t*) SPI_W0(HSPI))	// for use as an array in repeat transfer
-//0x60000140
 
+// enable / disable phases of an SPI transaction
+#define hspi_enable_command_phase	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_COMMAND)
+#define hspi_disable_command_phase 	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_COMMAND)
+
+#define hspi_enable_data_phase		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI)
+#define hspi_disable_data_phase 	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI)
+
+#define hspi_enable_read_phase		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MISO)
+#define hspi_disable_read_phase 	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MISO)
+
+#define hspi_enable_addr_phase		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_ADDR)
+#define hspi_disable_addr_phase 	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_ADDR)
+
+#define hspi_enable_dummy_phase		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_DUMMY)
+#define hspi_disable_dummy_phase 	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_DUMMY)
+
+#define hspi_tx_byte_order_H_to_L	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_WR_BYTE_ORDER)
+#define hspi_tx_byte_order_L_to_H	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_WR_BYTE_ORDER)
+
+#define hspi_rx_byte_order_H_to_L	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_RD_BYTE_ORDER)
+#define hspi_rx_byte_order_L_to_H	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_RD_BYTE_ORDER)
 
 inline void hspi_init_gpio (void);
 
+void hspi_clock(uint16 prediv, uint8 cntdiv);
 
+uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint32 addr_data, uint32 dout_bits, uint32 dout_data,
+				uint32 din_bits, uint32 dummy_bits);
 
+// stolen from spi.h
+#define hspi_txd(spi_no, bits, data) hspi_transaction(0, 0, 0, 0, bits, (uint32) data, 0, 0)
+#define hspi_tx8(spi_no, data)       hspi_transaction(0, 0, 0, 0, 8,    (uint32) data, 0, 0)
+#define hspi_tx16(spi_no, data)      hspi_transaction(0, 0, 0, 0, 16,   (uint32) data, 0, 0)
+#define hspi_tx32(spi_no, data)      hspi_transaction(0, 0, 0, 0, 32,   (uint32) data, 0, 0)
+
+#define hspi_rxd(spi_no, bits) hspi_transaction(0, 0, 0, 0, 0, 0, bits, 0)
+#define hspi_rx8(spi_no)       hspi_transaction(0, 0, 0, 0, 0, 0, 8,    0)
+#define hspi_rx16(spi_no)      hspi_transaction(0, 0, 0, 0, 0, 0, 16,   0)
+#define hspi_rx32(spi_no)      hspi_transaction(0, 0, 0, 0, 0, 0, 32,   0)
 
 
 #endif /* INCLUDE_HSPI_H_ */

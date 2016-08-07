@@ -19,66 +19,44 @@
 	I will track down the source.
 */
 
-
-
-// uint32_t *spi_fifo;		// pointer to the first SPI data register : SPI_W0(HSPI)
-// uint32_t *spi_fifo = (uint32_t*) SPI_W0(HSPI);	// direct init from constant is OK
-
 void hspi_init(void)
 {
-	//spi_fifo = (uint32_t*)SPI_W0(HSPI);
+	hspi_enable_80Mhz;	// Use 80 MHz system clock as SCK
+
+	hspi_init_gpio();
+
+	//hspi_clock(HSPI_PRESCALER, HSPI_DIVIDER);
+	//hspi_clock(1, 4);	// only settings that work appear to use prescaler 0 or 1
+	hspi_clock(0, 0);	// force 80 MHz SCK
+
+	hspi_enable_data_phase;
+	hspi_disable_addr_phase;
+	hspi_disable_dummy_phase;
+	hspi_disable_read_phase;
+	hspi_disable_command_phase;
+	// some libraries disable SPI_USER bit 2 and bit 0 (also named "SPI_DOUTDIN")
+
+	hspi_tx_byte_order_L_to_H;	// ILI9341 works like this
+	hspi_rx_byte_order_L_to_H;	// this is the default order, by the way
+}
+
 /*
-	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x105); //clear bit9 => why ?
-	// answer : setting this bit meas SPI uses 80 MHz sys clock.
-    // by clearing it, the prescaler is used.
+ * Clock predivider takes the 80 MHz system clock and divides it, feeding
+ * the SCK clock generator. "cntdiv" defines the period of SCK in predivided
+ * clock cycles.
+ */
+void hspi_clock(uint16 prediv, uint8 cntdiv)
+{
+	if((prediv==0)|(cntdiv==0))
+		WRITE_PERI_REG(SPI_CLOCK(HSPI), SPI_CLK_EQU_SYSCLK);
+	else
+		WRITE_PERI_REG(SPI_CLOCK(HSPI),
+		   (((prediv - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
+		   (((cntdiv - 1) & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
+		   ((0 & SPI_CLKCNT_H) << SPI_CLKCNT_H_S) |  // SCLK high for zero cycle ??? => tried 1, nothing works.
+		   (((cntdiv - 1) & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for the whole cycle...
 
-	// Set pin muxing for HSPI
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); // HSPIQ MISO GPIO12
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); // HSPID MOSI GPIO13
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); // CLK GPIO14
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); // CS GPIO15
-*/
-	hspi_enable_80Mhz;
-
-	// both work with ILI8341 but I don't know the real SCLK frequency.
-	//spi_init_gpio(HSPI,SPI_CLK_USE_DIV);
-	spi_init_gpio(HSPI,SPI_CLK_80MHZ_NODIV);
-	//hspi_init_gpio();
-
-	// Nefastor : a bit of research :
-	/* HSPI_PRESCALER == 1
-	 * I set clock cycle to 1, clock high for 0 cycle (somehow), clock low for 1 cycle
-	 * In spi.c, MP sets clock low for 0 cycle (always) clock high for half of "cntdiv", which
-	 * is set to 2 by default.
-	 * So his settings are : SCLK period 2 cycle, high 1 cycle, low 0 cycle
-	 * and my settings are : SCLK period 1 cycle, high 0 cycle, low 1 cycle
-	 */
-
-	// Set SCLK frequency and duty cycle
-	/*
-	WRITE_PERI_REG(SPI_CLOCK(HSPI),
-	   (((HSPI_PRESCALER - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
-	   ((1 & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
-	   ((0 & SPI_CLKCNT_H) << SPI_CLKCNT_H_S) |  // SCLK high for zero cycle ??? => tried 1, nothing works.
-	   ((1 & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for one cycle
-	   */
-
-	// the following is not done in spi.c : superfluous ?
-	// WRITE_PERI_REG(SPI_CTRL1(HSPI), 0);	// why ?
-
-	// TO DO : explain what this does : (spi.c doesn't do it... yet it is necessary)
-	// ANSWERS : enables / disables specific phases of an SPI command / transaction
-	// not necessary if using spi.c "transaction" function, which manages those bits
-	/*
-	uint32_t regvalue = SPI_USR_MOSI;
-    regvalue &= ~(BIT2 | SPI_USR_ADDR | SPI_USR_DUMMY | SPI_USR_MISO | SPI_USR_COMMAND | SPI_DOUTDIN);
-	WRITE_PERI_REG(SPI_USER(HSPI), regvalue);
-	*/
-
-	// spi_tx_byte_order(HSPI, SPI_BYTE_ORDER_HIGH_TO_LOW);
-	// spi_rx_byte_order(HSPI, SPI_BYTE_ORDER_HIGH_TO_LOW);
-	spi_tx_byte_order(HSPI, SPI_BYTE_ORDER_LOW_TO_HIGH);	// ILI9341 works like this
-	spi_rx_byte_order(HSPI, SPI_BYTE_ORDER_LOW_TO_HIGH);	// this is the default order, by the way
+	// it appears the "high" level must always be set to a length of zero, otherwise there's no SCK output...
 }
 
 // Send the same 16-bit value multiple times.
@@ -144,6 +122,9 @@ inline void hspi_wait_ready(void)
 	while (READ_PERI_REG(SPI_CMD(HSPI))&SPI_USR);
 }
 
+#define hspi_busy READ_PERI_REG(SPI_CMD(HSPI))&SPI_USR
+
+
 inline void hspi_prepare_tx(uint32_t bytecount)
 {
 	WRITE_PERI_REG(SPI_USER1(HSPI), (((bytecount << 3) - 1) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
@@ -197,4 +178,117 @@ inline void hspi_init_gpio (void)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); //GPIO15 is HSPI CS pin (Chip Select / Slave Select)
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function Name: hspi_transaction
+//   Description: HSPI transaction function
+//    Parameters:
+//				  cmd_bits - actual number of bits to transmit
+//				  cmd_data - command data
+//				  addr_bits - actual number of bits to transmit
+//				  addr_data - address data
+//				  dout_bits - actual number of bits to transmit
+//				  dout_data - output data
+//				  din_bits - actual number of bits to receive
+//
+//		 Returns: read data - uint32 containing read in data only if RX was set
+//				  0 - something went wrong (or actual read data was 0)
+//				  1 - data sent ok (or actual read data is 1)
+//				  Note: all data is assumed to be stored in the lower bits of
+//				  the data variables (for anything <32 bits).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint32 addr_data, uint32 dout_bits, uint32 dout_data,
+				uint32 din_bits, uint32 dummy_bits){
+
+
+	hspi_wait_ready (); //wait for SPI to be ready
+
+//########## Enable SPI Functions ##########//
+	//disable MOSI, MISO, ADDR, COMMAND, DUMMY in case previously set.
+	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI|SPI_USR_MISO|SPI_USR_COMMAND|SPI_USR_ADDR|SPI_USR_DUMMY);
+
+	//enable functions based on number of bits. 0 bits = disabled.
+	//This is rather inefficient but allows for a very generic function.
+	//CMD ADDR and MOSI are set below to save on an extra if statement.
+//	if(cmd_bits) {SET_PERI_REG_MASK(SPI_USER(spi_no), SPI_USR_COMMAND);}
+//	if(addr_bits) {SET_PERI_REG_MASK(SPI_USER(spi_no), SPI_USR_ADDR);}
+	if(din_bits) {SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MISO);}
+	if(dummy_bits) {SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_DUMMY);}
+//########## END SECTION ##########//
+
+//########## Setup Bitlengths ##########//
+	WRITE_PERI_REG(SPI_USER1(HSPI), ((addr_bits-1)&SPI_USR_ADDR_BITLEN)<<SPI_USR_ADDR_BITLEN_S | //Number of bits in Address
+									  ((dout_bits-1)&SPI_USR_MOSI_BITLEN)<<SPI_USR_MOSI_BITLEN_S | //Number of bits to Send
+									  ((din_bits-1)&SPI_USR_MISO_BITLEN)<<SPI_USR_MISO_BITLEN_S |  //Number of bits to receive
+									  ((dummy_bits-1)&SPI_USR_DUMMY_CYCLELEN)<<SPI_USR_DUMMY_CYCLELEN_S); //Number of Dummy bits to insert
+//########## END SECTION ##########//
+
+//########## Setup Command Data ##########//
+	if(cmd_bits) {
+		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_COMMAND); //enable COMMAND function in SPI module
+		uint16 command = cmd_data << (16-cmd_bits); //align command data to high bits
+		command = ((command>>8)&0xff) | ((command<<8)&0xff00); //swap byte order
+		WRITE_PERI_REG(SPI_USER2(HSPI), ((((cmd_bits-1)&SPI_USR_COMMAND_BITLEN)<<SPI_USR_COMMAND_BITLEN_S) | command&SPI_USR_COMMAND_VALUE));
+	}
+//########## END SECTION ##########//
+
+//########## Setup Address Data ##########//
+	if(addr_bits){
+		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_ADDR); //enable ADDRess function in SPI module
+		WRITE_PERI_REG(SPI_ADDR(HSPI), addr_data<<(32-addr_bits)); //align address data to high bits
+	}
+
+
+//########## END SECTION ##########//
+
+//########## Setup DOUT data ##########//
+	if(dout_bits) {
+		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI); //enable MOSI function in SPI module
+	//copy data to W0
+	if(READ_PERI_REG(SPI_USER(HSPI))&SPI_WR_BYTE_ORDER) {
+		WRITE_PERI_REG(SPI_W0(HSPI), dout_data<<(32-dout_bits));
+	} else {
+
+		uint8 dout_extra_bits = dout_bits%8;
+
+		if(dout_extra_bits){
+			//if your data isn't a byte multiple (8/16/24/32 bits)and you don't have SPI_WR_BYTE_ORDER set, you need this to move the non-8bit remainder to the MSBs
+			//not sure if there's even a use case for this, but it's here if you need it...
+			//for example, 0xDA4 12 bits without SPI_WR_BYTE_ORDER would usually be output as if it were 0x0DA4,
+			//of which 0xA4, and then 0x0 would be shifted out (first 8 bits of low byte, then 4 MSB bits of high byte - ie reverse byte order).
+			//The code below shifts it out as 0xA4 followed by 0xD as you might require.
+			WRITE_PERI_REG(SPI_W0(HSPI), ((0xFFFFFFFF<<(dout_bits - dout_extra_bits)&dout_data)<<(8-dout_extra_bits) | (0xFFFFFFFF>>(32-(dout_bits - dout_extra_bits)))&dout_data));
+		} else {
+			WRITE_PERI_REG(SPI_W0(HSPI), dout_data);
+		}
+	}
+	}
+//########## END SECTION ##########//
+
+//########## Begin SPI Transaction ##########//
+	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);
+//########## END SECTION ##########//
+
+//########## Return DIN data ##########//
+	if(din_bits) {
+		while(spi_busy(HSPI));	//wait for SPI transaction to complete
+
+		if(READ_PERI_REG(SPI_USER(HSPI))&SPI_RD_BYTE_ORDER) {
+			return READ_PERI_REG(SPI_W0(HSPI)) >> (32-din_bits); //Assuming data in is written to MSB. TBC
+		} else {
+			return READ_PERI_REG(SPI_W0(HSPI)); //Read in the same way as DOUT is sent. Note existing contents of SPI_W0 remain unless overwritten!
+		}
+
+		return 0; //something went wrong
+	}
+//########## END SECTION ##########//
+
+	//Transaction completed
+	return 1; //success
+}
+
+////////////////////////////////////////////////////////////////////////////////
 

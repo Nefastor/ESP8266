@@ -80,6 +80,8 @@ void spi_mode(uint8 spi_no, uint8 spi_cpha,uint8 spi_cpol){
 	}
 
 	// Nefastor : it looks like this next bit uses a differently named macro... replacing with likely suspect
+	// Actually, my change is wrong...
+	// ... or the register it goes in is wrong.
 	if (spi_cpol) {
 		SET_PERI_REG_MASK(SPI_PIN(spi_no), SPI_CK_I_EDGE);  // SPI_IDLE_EDGE
 	} else {

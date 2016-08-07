@@ -25,7 +25,6 @@
 
 int16_t		_width = ILI9341_TFTWIDTH;		// Display width and height as modified by current rotation
 int16_t		_height = ILI9341_TFTHEIGHT;	// Initialized for rotation = 0
-uint8_t		rotation = 0;
 uint16_t	textcolor = 0xFFFF;				// White on black text
 uint16_t	textbgcolor = 0x0000;
 
@@ -100,13 +99,6 @@ ICACHE_FLASH_ATTR void begin (void)
 
 	// Setup communication using HSPI
 	hspi_init();
-
-	// decomposed version of the above
-	//hspi_enable_80Mhz;
-	//hspi_init_gpio();
-
-	//spi_fifo = (uint32_t*)SPI_W0(HSPI);	// done in hspi.c but not in spi.c
-	//spi_init(HSPI);
 
 	// Initialize the GPIO pin that will drive the ILI9341's command / data signal
 	TFT_DC_INIT;
@@ -298,12 +290,12 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b)
 	return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
-void setRotation(uint8_t m) {
-
+// Argument must be 0 to 3
+void setRotation(uint8_t m)
+{
 	uint8_t madctl;
-	rotation = m & 0x03; // can't be higher than 3
 
-	switch (rotation)
+	switch (m)
 	{
 		case 0:
 			madctl = MADCTL_MX | MADCTL_BGR;
