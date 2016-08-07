@@ -5,7 +5,7 @@
 #include "hspi.h"
 
 // new : let's try to use MetalPhreak's SPI driver instead of hpsi.c
-#include "spi.h"
+//#include "spi.h"
 
 
 #define ILI9341_TFTWIDTH  240

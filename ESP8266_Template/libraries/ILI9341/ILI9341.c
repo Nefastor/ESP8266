@@ -35,7 +35,7 @@ inline void transmitData(uint16_t data)
 	// hspi_send_uint16(data);
 
 	// replacing with spi.c call :
-	spi_tx16(HSPI, data);
+	hspi_tx16(data);
 }
 
 // actually this isn't used anymore
@@ -56,7 +56,7 @@ inline void transmitCmd(uint8_t cmd)
 	//hspi_wait_ready();
 	TFT_DC_COMMAND;
 	//hspi_send_uint8(cmd);
-	spi_tx8(HSPI, cmd);
+	hspi_tx8(cmd);
 	hspi_wait_ready();		// this one is vital
 	TFT_DC_DATA;	// put it there because there may be multiple data transfers next
 }
@@ -68,19 +68,19 @@ inline void setAddrWindow (uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 	hspi_send_uint8(x0 & 0xFF);
 	hspi_send_uint8(x1 >> 8);
 	hspi_send_uint8(x1 & 0xFF);*/
-	spi_tx8(HSPI,x0 >> 8);
-	spi_tx8(HSPI,x0 & 0xFF);
-	spi_tx8(HSPI,x1 >> 8);
-	spi_tx8(HSPI,x1 & 0xFF);
+	hspi_tx8(x0 >> 8);
+	hspi_tx8(x0 & 0xFF);
+	hspi_tx8(x1 >> 8);
+	hspi_tx8(x1 & 0xFF);
 	transmitCmd (ILI9341_PASET);
 	/*hspi_send_uint8(y0 >> 8);
 	hspi_send_uint8(y0 & 0xFF);
 	hspi_send_uint8(y1 >> 8);
 	hspi_send_uint8(y1 & 0xFF);*/
-	spi_tx8(HSPI,y0 >> 8);
-	spi_tx8(HSPI,y0 & 0xFF);
-	spi_tx8(HSPI,y1 >> 8);
-	spi_tx8(HSPI,y1 & 0xFF);
+	hspi_tx8(y0 >> 8);
+	hspi_tx8(y0 & 0xFF);
+	hspi_tx8(y1 >> 8);
+	hspi_tx8(y1 & 0xFF);
 	transmitCmd (ILI9341_RAMWR); // write to RAM : 16-bit pixel colors can be written right after this function returns
 }
 
@@ -88,7 +88,7 @@ void transmitCmdDataBuf (uint8_t cmd, const uint8_t *data, uint8_t numDataByte)
 {
 	TFT_DC_COMMAND;
 	// hspi_send_uint8(cmd);
-	spi_tx8(HSPI,cmd);
+	hspi_tx8(cmd);
 	TFT_DC_DATA;
 	hspi_send_data(data, numDataByte);
 }
@@ -246,6 +246,8 @@ void drawPixel(int16_t x, int16_t y, uint16_t color) {
 	// - bounding the arguments with bitwise logical functions
 	// I'm guessing this test is necessary because of geometric functions that don't perform it themselves.
 	// (once again, it's typical Adafruit crap coding)
+	// note : if the tests are necessary they could at least be cut into 4 tests
+	// to allow for early returns on first failure.
 	setAddrWindow(x,y,x+1,y+1);	// not even sure I need the +1's
 	transmitData(color);
 }

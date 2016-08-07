@@ -80,19 +80,23 @@ inline void hspi_init_gpio (void);
 
 void hspi_clock(uint16 prediv, uint8 cntdiv);
 
+// stolen from spi.c and mutated into an HSPI-only function.
+// I need this function in order to implement SPI reads and, of course, all transaction formats
 uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint32 addr_data, uint32 dout_bits, uint32 dout_data,
 				uint32 din_bits, uint32 dummy_bits);
 
 // stolen from spi.h
-#define hspi_txd(spi_no, bits, data) hspi_transaction(0, 0, 0, 0, bits, (uint32) data, 0, 0)
-#define hspi_tx8(spi_no, data)       hspi_transaction(0, 0, 0, 0, 8,    (uint32) data, 0, 0)
-#define hspi_tx16(spi_no, data)      hspi_transaction(0, 0, 0, 0, 16,   (uint32) data, 0, 0)
-#define hspi_tx32(spi_no, data)      hspi_transaction(0, 0, 0, 0, 32,   (uint32) data, 0, 0)
+// note : the original hspi.c transmission macros are likely faster,
+// so what's really useful here are the macros for reading data
+#define hspi_txd(bits, data) hspi_transaction(0, 0, 0, 0, bits, (uint32) data, 0, 0)
+#define hspi_tx8(data)       hspi_transaction(0, 0, 0, 0, 8,    (uint32) data, 0, 0)
+#define hspi_tx16(data)      hspi_transaction(0, 0, 0, 0, 16,   (uint32) data, 0, 0)
+#define hspi_tx32(data)      hspi_transaction(0, 0, 0, 0, 32,   (uint32) data, 0, 0)
 
-#define hspi_rxd(spi_no, bits) hspi_transaction(0, 0, 0, 0, 0, 0, bits, 0)
-#define hspi_rx8(spi_no)       hspi_transaction(0, 0, 0, 0, 0, 0, 8,    0)
-#define hspi_rx16(spi_no)      hspi_transaction(0, 0, 0, 0, 0, 0, 16,   0)
-#define hspi_rx32(spi_no)      hspi_transaction(0, 0, 0, 0, 0, 0, 32,   0)
+#define hspi_rxd(bits) hspi_transaction(0, 0, 0, 0, 0, 0, bits, 0)
+#define hspi_rx8()       hspi_transaction(0, 0, 0, 0, 0, 0, 8,    0)
+#define hspi_rx16()      hspi_transaction(0, 0, 0, 0, 0, 0, 16,   0)
+#define hspi_rx32()      hspi_transaction(0, 0, 0, 0, 0, 0, 32,   0)
 
 
 #endif /* INCLUDE_HSPI_H_ */
