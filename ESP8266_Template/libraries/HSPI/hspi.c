@@ -179,6 +179,13 @@ inline void hspi_init_gpio (void)
 }
 
 
+/*
+ * Nefastor : the following is a fairly heavy function but one that is universal
+ * (it should cover all the possible types of SPI transaction).
+ * My goal now is to create dedicated SPI read functions for specific SPI
+ * slaves, to achieve the best performance.
+ */
+
 ////////////////////////////////////////////////////////////////////////////////
 // STOLEN BY NEFASTOR and adapted to / optimized for the HSPI
 // Function Name: hspi_transaction
