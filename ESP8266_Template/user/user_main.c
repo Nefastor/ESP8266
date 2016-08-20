@@ -5,11 +5,12 @@
  *
  * Description: entry file of user application
  *
- * This version demonstrates the ILI9341 LCD controller library
+ * This version demonstrates the MAX6675 thermocouple interface
+ * It also uses the ILI9341 LCD controller library to display temperature
  *
  * Full article and hardware schematics at :
  *
- * www.nefastor.com/esp8266-ili9341-lcd-library
+ * (to be determined)
  *
 *******************************************************************************/
 
