@@ -25,6 +25,8 @@
 #ifndef __GPIO_H__
 #define __GPIO_H__
 
+#include <c_types.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -153,7 +155,7 @@ typedef struct {
 #define GPIO_DIS_OUTPUT(gpio_no)    gpio_output_conf(0, 0, 0, 1<<gpio_no)
 
 /**  
-  * @brief   Enable GPIO pin intput.
+  * @brief   Enable GPIO pin input.
   * 
   * @param   gpio_bits : The GPIO bit number.
   *  
