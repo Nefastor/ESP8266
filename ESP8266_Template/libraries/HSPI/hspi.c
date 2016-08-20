@@ -29,6 +29,10 @@ void hspi_init(void)
 	//hspi_clock(1, 4);	// only settings that work appear to use prescaler 0 or 1
 	hspi_clock(0, 0);	// force 80 MHz SCK
 
+	// code present in Espressif library, not sure what it does:
+	// SET_PERI_REG_MASK(SPI_USER(spi_no), SPI_CS_SETUP|SPI_CS_HOLD|SPI_USR_COMMAND);
+	// CLEAR_PERI_REG_MASK(SPI_USER(spi_no), SPI_FLASH_MODE);
+
 	hspi_enable_data_phase;
 	hspi_disable_addr_phase;
 	hspi_disable_dummy_phase;
