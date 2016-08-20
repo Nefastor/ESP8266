@@ -24,26 +24,38 @@
 #include "lwip/udp.h"
 
 #include "ILI9341.h"
+#include "MAX6675.h"
 
 void task_lcd_1(void *pvParameters)
 {
 	int color = 0;
 
-	drawString("All Hail Nefastor !",0,16,2);
+	// drawString("All Hail Nefastor !",0,16,2);
+	drawString("Nefastor's Thermocouple Test",0,16,2);
 
-	while(1)
+	while (1)
 	{
-		color++;
-		if (color > 374)
-			color = 0;
-
-		setTextColor (color * 700);
-		drawString(" - nefastor.com -",0,112,4);
+		// MAX6675 has a sampling frequency of 4 Hz (worst case)
 		vTaskDelay (100);
 
-		setTextColor (0);	// black
-		drawString(" - nefastor.com -",0,112,4);
-		vTaskDelay (100);
+		uint16 sample = max6675_read();
+
+		// display the sample as a binary value (debug purposes)
+		int k = 16;
+		int x = 0;
+		while (k--)
+		{
+			drawNumber ((sample >> k) & 1,x,60,2);
+			x += 10;
+		}
+
+
+		// only bits 14 down to 3 represent a temperature sample
+		sample = sample >> 3;	// eliminate the 3 LSB. Bit 15 is always zero, leave it
+		// 1 LSB equals 1/4th of a degree Centigrade, thus a raw conversion into Centigrades is:
+		sample = sample >> 2;
+
+		drawNumber (sample,0,112,4);
 	}
 }
 
@@ -61,6 +73,9 @@ void user_init(void)
 
 	// Deactivate WiFi to prevent "pause" on boot and save the planet. I mean power.
 	wifi_set_opmode(NULL_MODE);
+
+	// Initialize the MAX6675 thermocouple interface
+	max6675_init ();
 
 	// Initialize TFT (also takes care of HSPI)
 	begin();
