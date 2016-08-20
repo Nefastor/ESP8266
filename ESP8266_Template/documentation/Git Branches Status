@@ -1,0 +1,12 @@
+Status of the git branches:
+
+* master : up to date except for SPI library, on which I still have a lot of work to do
+* ILI9341 : working. Library can be expanded and optimized further
+* SPI : major work in progress to expand and clarify HSPI functionality
+        I'm using an ILI9341 display (and library) to validate the operation of my
+        SPI library. TO DO : when complete, commit the SPI lib and cherry-pick that
+        commit into the master branch and all other branches.
+* MAX6675 : simple library (software emulation) to read temperature samples from a
+            thermocouple. Currently under development.
+            This branch is created from branch SPI, which also contains ILI9341 code,
+            which will be used to display temperature.
