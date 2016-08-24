@@ -22,7 +22,7 @@ SDK_TOOLS	?= c:/Espressif/utils
 # esptool path and port
 ESPTOOL ?= $(SDK_TOOLS)/esptool.exe
 # COM port
-ESPPORT ?= COM6
+ESPPORT ?= COM5
 # Baud rate
 BAUD ?= 912600
 
@@ -122,7 +122,7 @@ endif
 TARGET		= app
 
 # which modules (subdirectories) of the project to include in compiling
-MODULES	= user libraries/GPIO libraries/HSPI libraries/ILI9341
+MODULES	= user libraries/GPIO libraries/HSPI libraries/ILI9341 libraries/DHT22
 #HSPI ILI9341
 EXTRA_INCDIR = include
 

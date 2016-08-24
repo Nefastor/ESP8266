@@ -25,6 +25,8 @@
 #ifndef __GPIO_H__
 #define __GPIO_H__
 
+#include <c_types.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -63,6 +65,18 @@ extern "C" {
 #define GPIO_PIN_REG_13         PERIPHS_IO_MUX_MTCK_U
 #define GPIO_PIN_REG_14         PERIPHS_IO_MUX_MTMS_U
 #define GPIO_PIN_REG_15         PERIPHS_IO_MUX_MTDO_U
+
+// Nefastor: adding NodeMCU pin names
+//#define GPIO_D0	not applicable : this is GPIO16, which has its own API
+#define GPIO_D1		PERIPHS_IO_MUX_GPIO5_U
+#define GPIO_D2		PERIPHS_IO_MUX_GPIO4_U
+#define GPIO_D3		PERIPHS_IO_MUX_GPIO0_U
+#define GPIO_D4		PERIPHS_IO_MUX_GPIO2_U
+#define GPIO_D5		PERIPHS_IO_MUX_MTMS_U
+#define GPIO_D6		PERIPHS_IO_MUX_MTDI_U
+#define GPIO_D7		PERIPHS_IO_MUX_MTCK_U
+#define GPIO_D8		PERIPHS_IO_MUX_MTDO_U
+
 
 #define GPIO_PIN_REG(i) \
     (i==0) ? GPIO_PIN_REG_0:  \
