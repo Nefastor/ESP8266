@@ -144,10 +144,12 @@ void task_lcd_3b(void *pvParameters)
 {
 	while (1)
 	{
+		sample_display ();
+
 		if (sample_valid == 1)
 		{
-			sample_display ();
-			sample_valid = 0;	// sample "consumed"
+
+			//sample_valid = 0;	// sample "consumed"
 
 			// send a packet to the PC through UDP (use broadcast address for simplicity)
 			// first create a string from temperature and humidity samples

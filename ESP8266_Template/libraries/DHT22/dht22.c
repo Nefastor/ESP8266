@@ -4,41 +4,78 @@
 #include "gpio.h"			// Nefastor's GPIO library
 #include "dht22.h"			// Nefastor's DHT22 library
 
+// output from the sensor in decimal form
+int sample_rh = 0;		// to do : change to uint16_t
+int sample_t = 0;		// to do : change to uint16_t and interpret sign bit
+int sample_valid = 0;	// value is 1 if the current sample is valid (checksum pass)
 
-void dht22_init (void)
+// raw binary storage for a sensor read (40 bits)
+unsigned char samples[5];	// first data bit is in MSB of samples[0]
+
+// debug : duration of each sensor bit's low and high state, including start bit
+// these durations are expressed in "calls to os_delay_us(1)", which should be 1 µs
+int bit_duration[82];		// even index for low state, odd index for high state
+int bit_duration_up[41];	// duration of low state for start bit and data bits
+int bit_duration_down[41];	// duration of high state for start bit and data bits
+unsigned char bit_state[41];// state of each bit based on their relative duration
+
+// decode sample[] into integer values (stored into globals)
+void dht22_sample_decoding()
 {
-	// setup the I/O pin : enable pull-up and falling-edge interrupt
-	PIN_PULLUP_EN (GPIO_PIN_REG (DHT_PIN));
-	// gpio_pin_intr_state_set (DHT_PIN, GPIO_PIN_INTR_NEGEDGE);
-	// gpio_pin_intr_state_set (DHT_PIN, 2); 	// temporary fix for double define
-	gpio_pin_intr_state_set (DHT_PIN, 1); 	// interrupt on rising edge
+	sample_rh = (samples[0] << 8) + samples[1];
+	sample_t = (samples[2] << 8) + samples[3];
 
-	// Set the GPIO ISR
-	gpio_intr_handler_register(dht22_ISR, NULL);
+/*	uint16_t chksum = samples[0];
+	chksum += samples[1];
+	chksum += samples[2];
+	chksum += samples[3];
+	chksum &= 0x00FF;		// keep only the 8 LSB
+	*/
 
-	// Enable GPIO interrupts : not required, performed in read function
-	// ETS_GPIO_INTR_ENABLE();
+	//uint16_t chksum = (samples[0] + samples[1] + samples[2] + samples[3]) & 0x00FF;
+	// chksum &= 0x00FF;		// keep only the 8 LSB
+
+	// seems to work
+	unsigned char chksum = (uint16_t)(samples[0] + samples[1] + samples[2] + samples[3]) & 0x00FF;
+
+	// if ((samples[0]+samples[1]+samples[2]+samples[3]) == samples[4])
+	// for some reason, this doesn't work. I suspect compiler optimizations
+/*
+	if (chksum == (uint16_t) samples[4])
+		sample_valid = 1;
+	else
+		sample_valid = 0;
+	*/
+
+	sample_valid = (chksum == samples[4]) ? 1 : 0;
 }
 
-/* The following function is a dumb implementation, designed to verify sensor
- * operation prior to optimizing the code for multitasking support.
- *
- * Note : this function should not be called within the first second after powering
- * up the sensor.
- */
-
-int	dht_busy = 0;		// value is 1 while the following function is working
-int sample_rh = -100;
-int sample_t = -100;
-int sample_valid = 0;	// value is 1 if the current sample is valid (good checksum)
-int bit_duration[82];	// store the duration of each bit, in microseconds
-unsigned char samples[5];
-
-// simplified variant for the event-driven version
-void dht22_sample_decoding_ed()
+// call this after a read to turn intervals into usable data
+void dht22_sample_decoding_thresh()
 {
-	// decoding the samples
+	int ix, bits;
+	int threshold = bit_duration[1] >> 1;	// Start bit duration divided by 2.
+	// start bit is usually measured as 51-53, low bit at 16-17, high bit as 47-48
 
+	// decoding the samples
+	unsigned char b;
+	int byte_cnt;
+
+	ix = 3;		// looking at high state durations only, skip start bit
+	for (byte_cnt = 0; byte_cnt < 5; byte_cnt++)
+	{
+		samples[byte_cnt] = 0;
+		for (bits = 0, b = 0x80; bits < 8; bits++ , ix += 2)
+		{
+			if (bit_duration[ix] > 30)
+				samples[byte_cnt] |= b;
+
+			b = b >> 1;
+		}
+	}
+
+	dht22_sample_decoding();
+	/*
 	sample_rh = (samples[0] << 8) + samples[1];
 	sample_t = (samples[2] << 8) + samples[3];
 
@@ -53,47 +90,15 @@ void dht22_sample_decoding_ed()
 		sample_valid = 1;
 	else
 		sample_valid = 0;
+	*/
 }
 
-// call this after a read to turn intervals into usable data
-void dht22_sample_decoding()
-{
-	int ix, bits;
-	int threshold = bit_duration[1] >> 1;	// Start bit duration divided by 2.
-	// start bit is usually measured as 51-53, low bit at 16-17, high bit as 47-48
-
-	// decoding the samples
-		unsigned char b;
-		int byte_cnt;
-
-		ix = 3;		// looking at high state durations only, post start bit
-		for (byte_cnt = 0; byte_cnt < 5; byte_cnt++)
-		{
-			samples[byte_cnt] = 0;
-			for (bits = 0, b = 0x80; bits < 8; bits++ , ix += 2)
-			{
-				if (bit_duration[ix] > 30)
-					samples[byte_cnt] |= b;
-
-				b = b >> 1;
-			}
-		}
-
-		sample_rh = (samples[0] << 8) + samples[1];
-		sample_t = (samples[2] << 8) + samples[3];
-
-		uint16_t chksum = samples[0];
-		chksum += samples[1];
-		chksum += samples[2];
-		chksum += samples[3];
-		chksum &= 0x00FF;
-
-		// if (samples[0]+samples[1]+samples[2]+samples[3] == samples[4])
-		if (chksum == (uint16_t) samples[4])
-			sample_valid = 1;
-		else
-			sample_valid = 0;
-}
+/* The following function is a dumb implementation, designed to verify sensor
+ * operation prior to optimizing the code for multitasking support.
+ *
+ * Note : this function should not be called within the first second after powering
+ * up the sensor.
+ */
 
 void dht22_read (void)
 {
@@ -188,13 +193,12 @@ void dht22_read (void)
  */
 
 // globals
-int remaining_bits = 0;
 int bit_index = -1;
 
-int dht22_read_ed (void)
+void dht22_read_ed (void)
 {
 	if (bit_index != -1)		// this value is used to indicate no read is in progress
-		return 0;
+		return;
 
 	bit_index = 0;				// ammounts to indicating that a read is in progress
 
@@ -219,7 +223,7 @@ int dht22_read_ed (void)
 	// Enable GPIO interrupt
 	ETS_GPIO_INTR_ENABLE();
 
-	return 0;	// and we're done.
+	return;	// and we're done.
 }
 
 void dht22_ISR (uint32 mask, void* argument)
@@ -285,7 +289,7 @@ void dht22_ISR (uint32 mask, void* argument)
 
 		ETS_GPIO_INTR_DISABLE();	// also disable GPIO interrupts
 
-		dht22_sample_decoding_ed();	// call function to decode the results
+		dht22_sample_decoding();	// call function to decode the results
 	}
 	else
 	{
@@ -304,4 +308,14 @@ void dht22_ISR (uint32 mask, void* argument)
 int dht22_read_ed_busy (void)
 {
 	return (bit_index == -1) ? 0 : 1;
+}
+
+void dht22_init (void)
+{
+	// setup the I/O pin : enable pull-up and rising-edge interrupt
+	PIN_PULLUP_EN (GPIO_PIN_REG (DHT_PIN));
+	gpio_pin_intr_state_set (DHT_PIN, GPIO_PIN_INTR_POSEDGE);
+
+	// Set the GPIO ISR (note : interrupt enable is handled in dht22_read_ed function)
+	gpio_intr_handler_register(dht22_ISR, NULL);
 }

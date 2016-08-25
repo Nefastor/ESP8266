@@ -8,34 +8,28 @@
 #ifndef __DHT22_H__
 #define __DHT22_H__
 
-// from pin_mux_register.h
-//#define PIN_PULLUP_DIS(PIN_NAME)         CLEAR_PERI_REG_MASK(PIN_NAME, PERIPHS_IO_MUX_PULLUP)
-//#define PIN_PULLUP_EN(PIN_NAME)          SET_PERI_REG_MASK(PIN_NAME, PERIPHS_IO_MUX_PULLUP)
+// Which pin is the sensor connected to ? Use only GPIO 0..15
+// Note : the WeMos D1 Mini DHT22 shield uses pin D4 = GPIO2
+#define 	DHT_PIN		2
 
-
-//#define 	DHT_PIN		GPIO_D4		// WeMos DHT22 shield uses pin D4
-//#define		DHT_PIN_NUMBER
-
-extern int dht_busy;			// value is 1 while the following function is working
-extern int sample_rh;
-extern int sample_t;
-extern int sample_valid;		// value is 1 if the current sample is valid (good checksum)
-extern int bit_duration[82];	// store the duration of each bit, in microseconds
-extern unsigned char samples[5];
-
-#define 	DHT_PIN		2			// WeMos DHT22 shield uses pin D4 = GPIO2
-
+// The sensor may not respond to the ESP8266, let's define a comfortable time-out
 #define		DHT_TIMEOUT	1000		// Timeout in microseconds
 
-void dht22_init (void);
+// Global variables accessible to user code
+extern int sample_rh;
+extern int sample_t;
+extern int sample_valid;
+extern int bit_duration[82];
+extern int bit_duration_up[41];
+extern int bit_duration_down[41];
+extern unsigned char samples[5];
 
-void dht22_read (void);
+// API
 
-extern int remaining_bits;
-extern int bit_index;
+void dht22_init (void);		// Pin muxing and interrupt setup
 
-int dht22_read_ed (void);
-void dht22_ISR (uint32 mask, void* argument);
+void dht22_read (void);		// Blocking read function, VERY long (up to 275 ms)
 
+void dht22_read_ed (void);	// Non-blocking read function, uses GPIO interrupt
 
 #endif /* __DHT22_H__ */
