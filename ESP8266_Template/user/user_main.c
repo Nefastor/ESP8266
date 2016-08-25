@@ -33,50 +33,6 @@
 // For sprintf
 #include <stdio.h>
 
-// Sample display routine
-void sample_display ()
-{
-	// experimental : display sensor start bit duration
-			int wid;
-			wid = drawNumber(bit_duration[0],0,0,4);
-			wid += drawString (" - ",wid,0,4);
-			drawNumber(bit_duration[1],wid,0,4);
-
-			// experimental : display all sensor bit durations (low + high phases)
-			int idx;
-			int col = 0;	// 0 for left, 1 for center, 2 for right
-			int line = 32;	// in pixels
-			for (idx = 2; idx < 82; idx+=2)
-			{
-				wid = col * 80;	// values : 0, 80, 160
-
-				wid += drawNumber(bit_duration[idx],wid,line,2);
-				wid += drawString (" - ",wid,line,2);
-				drawNumber(bit_duration[idx + 1],wid,line,2);
-
-				col++;
-				if (col == 3)
-				{
-					col = 0;
-					line += 16;
-				}
-			}
-
-			// displaying the samples
-			line += 16;
-			drawNumber(sample_rh,0,line,2);
-			drawNumber(sample_t,80,line,2);
-			drawNumber(sample_valid,160,line,2);
-
-			line += 16;
-			drawNumber(samples[0],0,line,2);
-			drawNumber(samples[1],40,line,2);
-			drawNumber(samples[2],80,line,2);
-			drawNumber(samples[3],120,line,2);
-			drawNumber(samples[4],160,line,2);
-}
-
-
 void task_lcd_1(void *pvParameters)
 {
 	vTaskDelay (200);	// might be at least a couple seconds
@@ -89,7 +45,7 @@ void task_lcd_1(void *pvParameters)
 		dht22_read ();
 		//portEXIT_CRITICAL();
 
-		sample_display ();
+		dht22_sample_display ();
 	}
 }
 
@@ -106,7 +62,7 @@ void task_lcd_2(void *pvParameters)
 		system_soft_wdt_feed();
 
 		// start reading
-		dht22_read_ed ();
+		dht22_read ();
 
 		// wait for read to complete, then show the results
 		//bit_duration[0] = 0;	// debug only - measuring response time
@@ -116,8 +72,8 @@ void task_lcd_2(void *pvParameters)
 			vTaskDelay (1);	// 10 ms delay. The whole read can't exceed 5 ms.
 		//}
 
-		if (dht22_read_ed_busy() == 0) // only display valid samples
-			sample_display ();
+		//if (dht22_read_ed_busy() == 0) // only display valid samples
+			dht22_sample_display ();
 	}
 }
 
@@ -144,7 +100,7 @@ void task_lcd_3b(void *pvParameters)
 {
 	while (1)
 	{
-		sample_display ();
+		dht22_sample_display ();
 
 		if (sample_valid == 1)
 		{

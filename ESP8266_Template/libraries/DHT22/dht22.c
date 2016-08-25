@@ -14,10 +14,8 @@ unsigned char samples[5];	// first data bit is in MSB of samples[0]
 
 // debug : duration of each sensor bit's low and high state, including start bit
 // these durations are expressed in "calls to os_delay_us(1)", which should be 1 µs
-int bit_duration[82];		// even index for low state, odd index for high state
-int bit_duration_up[41];	// duration of low state for start bit and data bits
-int bit_duration_down[41];	// duration of high state for start bit and data bits
-unsigned char bit_state[41];// state of each bit based on their relative duration
+int bit_duration_hi[41];	// duration of low state for start bit and data bits
+int bit_duration_lo[41];	// duration of high state for start bit and data bits
 
 // decode sample[] into integer values (stored into globals)
 void dht22_sample_decoding()
@@ -25,27 +23,8 @@ void dht22_sample_decoding()
 	sample_rh = (samples[0] << 8) + samples[1];
 	sample_t = (samples[2] << 8) + samples[3];
 
-/*	uint16_t chksum = samples[0];
-	chksum += samples[1];
-	chksum += samples[2];
-	chksum += samples[3];
-	chksum &= 0x00FF;		// keep only the 8 LSB
-	*/
-
-	//uint16_t chksum = (samples[0] + samples[1] + samples[2] + samples[3]) & 0x00FF;
-	// chksum &= 0x00FF;		// keep only the 8 LSB
-
-	// seems to work
+	// Cheksum : accumulate the first four bytes on a word and keep only the LSB
 	unsigned char chksum = (uint16_t)(samples[0] + samples[1] + samples[2] + samples[3]) & 0x00FF;
-
-	// if ((samples[0]+samples[1]+samples[2]+samples[3]) == samples[4])
-	// for some reason, this doesn't work. I suspect compiler optimizations
-/*
-	if (chksum == (uint16_t) samples[4])
-		sample_valid = 1;
-	else
-		sample_valid = 0;
-	*/
 
 	sample_valid = (chksum == samples[4]) ? 1 : 0;
 }
@@ -54,136 +33,100 @@ void dht22_sample_decoding()
 void dht22_sample_decoding_thresh()
 {
 	int ix, bits;
-	int threshold = bit_duration[1] >> 1;	// Start bit duration divided by 2.
+	int threshold = bit_duration_hi[0] >> 1;	// Start bit duration divided by 2.
 	// start bit is usually measured as 51-53, low bit at 16-17, high bit as 47-48
 
 	// decoding the samples
-	unsigned char b;
-	int byte_cnt;
+	unsigned char b;		// bit mask
+	int byte_cnt;			// samples[] index
 
-	ix = 3;		// looking at high state durations only, skip start bit
+	ix = 1;		// skip start bit
 	for (byte_cnt = 0; byte_cnt < 5; byte_cnt++)
 	{
 		samples[byte_cnt] = 0;
-		for (bits = 0, b = 0x80; bits < 8; bits++ , ix += 2)
+		for (bits = 0, b = 0x80; bits < 8; bits++ , ix++)
 		{
-			if (bit_duration[ix] > 30)
+			if (bit_duration_hi[ix] > threshold)  // looking at high state durations only
 				samples[byte_cnt] |= b;
 
 			b = b >> 1;
 		}
 	}
 
-	dht22_sample_decoding();
-	/*
-	sample_rh = (samples[0] << 8) + samples[1];
-	sample_t = (samples[2] << 8) + samples[3];
-
-	uint16_t chksum = samples[0];
-	chksum += samples[1];
-	chksum += samples[2];
-	chksum += samples[3];
-	chksum &= 0x00FF;
-
-	// if (samples[0]+samples[1]+samples[2]+samples[3] == samples[4])
-	if (chksum == (uint16_t) samples[4])
-		sample_valid = 1;
-	else
-		sample_valid = 0;
-	*/
+	dht22_sample_decoding();	// turn samples[] into decimal values and check sum.
 }
 
 /* The following function is a dumb implementation, designed to verify sensor
  * operation prior to optimizing the code for multitasking support.
  *
- * Note : this function should not be called within the first second after powering
- * up the sensor.
+ * Very stable, which is why I'm currently leaving it in. It is also useful for
+ * learning how the sensor works (and checking that it does)
  */
 
 void dht22_read (void)
 {
+	int k;		// bit index
+	int t;		// bit duration counter (in microseconds)
+
 	// given this function's long duration, feed the watchdog first
 	system_soft_wdt_feed();
 
-	int cnt = 0;		// bit counter
-	int i = 0;			// bit duration counter (in microseconds)
+	// clear previous results
+	for (t=0;t<41;t++)
+		bit_duration_hi[t] = bit_duration_lo[t] = 0;
 
-	for (i=0;i<82;i++) bit_duration[i] = 0;	// clear previous results
+	// Send a read command to the sensor
+	GPIO_OUTPUT_SET(DHT_PIN, 1);	// keep the pin high for 250 ms
+	os_delay_us (50000);
+	os_delay_us (50000);
+	os_delay_us (50000);
+	os_delay_us (50000);
+	os_delay_us (50000);
 
-	// Start sequence
-	// 250ms of high
-	GPIO_OUTPUT_SET(DHT_PIN, 1);
-	os_delay_us (50000);
-	os_delay_us (50000);
-	os_delay_us (50000);
-	os_delay_us (50000);
-	os_delay_us (50000);
-	// vTaskDelay (1);		// Also works
-	// Hold low for 20ms
-	GPIO_OUTPUT_SET(DHT_PIN, 0);
+	GPIO_OUTPUT_SET(DHT_PIN, 0);	// then hold it low for 20 ms
 	os_delay_us (20000);
-	// vTaskDelay (1);		// Also works
-	// High for 40us
-	GPIO_OUTPUT_SET(DHT_PIN, 1);
+
+	GPIO_OUTPUT_SET(DHT_PIN, 1);	// and finally, high for 40 µs
 	os_delay_us(40);
-	// Set DHT_PIN pin as an input
-	GPIO_DIS_OUTPUT(DHT_PIN);
+
+	GPIO_DIS_OUTPUT(DHT_PIN);		// set DHT_PIN pin as an input
 
 	// at this point, the sensor should immediately pull down the line, and keep
 	// it down for 80 us. Let's see if it does.
 
 	// wait for pin to drop (loop should exit immediately)
 	// tests show this works (duration : 0)
-	while (GPIO_INPUT_GET(DHT_PIN) == 1 && bit_duration[0] < DHT_TIMEOUT)
-	{
+
+	t = 0;
+	while ((GPIO_INPUT_GET(DHT_PIN) == 1) && (t++ < DHT_TIMEOUT))
 		os_delay_us(1);
-		bit_duration[0]++;
-	}
 
-	if (bit_duration[0] == DHT_TIMEOUT) //	return;	// The sensor failed to respond, previous samples remain
-	{
-		bit_duration[99] = 777;		// arbitrary error code
-		return;
-	}
+	if (t >= DHT_TIMEOUT)	return;	// The sensor failed to respond
+	// in this case, the last sample received (if valid) is still available
 
-	// now count all long the pin stays low
-	// should be 80 µs but gets reported as 40.
-	// note : re-using bit_duration[0] since I'm storing low time, then high time
-	while (GPIO_INPUT_GET(DHT_PIN) == 0 && bit_duration[0] < DHT_TIMEOUT)
-	{
-		os_delay_us(1);
-		bit_duration[0]++;
-	}
+	// getting here means we're going to receive 41 bits of data, each in the form
+	// of a low state followed by a high state. Each bit's actual value is defined by
+	// the relative length of each state, so we're going to measure those.
 
-	// now measure the high period for the start bit
-	while (GPIO_INPUT_GET(DHT_PIN) == 1 && bit_duration[1] < DHT_TIMEOUT)
-	{
-		os_delay_us(1);
-		bit_duration[1]++;
-	}
+	// int bits;
 
-	// Now I should read 40 bits in similar fashion. Let's make a loop:
-	int bits;
-	int ix = 2;
-	for (bits = 1; bits<41; bits++)
+	for (k = 0 ; k < 41 ; k++)
 	{
 		// measure low state
 		while (GPIO_INPUT_GET(DHT_PIN) == 0)
 		{
 			os_delay_us(1);
-			bit_duration[ix]++;
+			bit_duration_lo[k]++;
 		}
-		ix++;
 		// measure high state
 		while (GPIO_INPUT_GET(DHT_PIN) == 1)
 		{
 			os_delay_us(1);
-			bit_duration[ix]++;
+			bit_duration_hi[k]++;
 		}
-		ix++;
 	}
 
-	dht22_sample_decoding();
+	dht22_sample_decoding_thresh();
 }
 
 /* "Partially event-driven" version
@@ -255,6 +198,9 @@ void dht22_ISR (uint32 mask, void* argument)
 	if (bit_index == 0)		// then we just measured the start bit
 	{
 		theshold = bit_timer >> 1;	// anything longer than that is a "one"
+
+		// for debugging
+		bit_duration_hi[0] = bit_timer;
 	}
 	else
 	{
@@ -271,14 +217,13 @@ void dht22_ISR (uint32 mask, void* argument)
 			samples[samplebyte] |= bitmsk;
 
 		// Also store the timing data for debugging
-		int dur_idx = (bit_index << 1) + 1;   // index of the duration for this bit
-		bit_duration[dur_idx] = bit_timer;
+		bit_duration_hi[bit_index] = bit_timer;
 
 		// Also store the bits as integers in the timing array, for tests
 		if (bit_timer > theshold)
-			bit_duration[dur_idx - 1] = 1;
+			bit_duration_lo[bit_index] = 1;
 		else
-			bit_duration[dur_idx - 1] = 0;
+			bit_duration_lo[bit_index] = 0;
 
 	}
 
@@ -318,4 +263,58 @@ void dht22_init (void)
 
 	// Set the GPIO ISR (note : interrupt enable is handled in dht22_read_ed function)
 	gpio_intr_handler_register(dht22_ISR, NULL);
+}
+
+
+
+
+
+
+// ********************* DEBUG FUNCTIONS ********************************
+
+// display sample data on an ILI9341 LCD module
+// uses the ILI9341 library
+void dht22_sample_display ()
+{
+	// experimental : display sensor start bit duration
+	int wid;
+	wid = drawNumber(bit_duration_lo[0],0,0,4);
+	wid += drawString (" - ",wid,0,4);
+	drawNumber(bit_duration_hi[0],wid,0,4);
+
+	// experimental : display all sensor bit durations (low + high phases)
+	int idx;
+	int col = 0;	// 0 for left, 1 for center, 2 for right
+	int line = 32;	// in pixels
+	//for (idx = 2; idx < 82; idx+=2)
+	for (idx = 1; idx < 41; idx++)
+	{
+		wid = col * 80;	// values : 0, 80, 160
+
+		// wid += drawNumber(bit_duration[idx],wid,line,2);
+		wid += drawNumber(bit_duration_lo[idx],wid,line,2);
+		wid += drawString (" - ",wid,line,2);
+		// drawNumber(bit_duration[idx + 1],wid,line,2);
+		drawNumber(bit_duration_hi[idx],wid,line,2);
+
+		col++;
+		if (col == 3)
+		{
+			col = 0;
+			line += 16;
+		}
+	}
+
+	// displaying the samples
+	line += 16;
+	drawNumber(sample_rh,0,line,2);
+	drawNumber(sample_t,80,line,2);
+	drawNumber(sample_valid,160,line,2);
+
+	line += 16;
+	drawNumber(samples[0],0,line,2);
+	drawNumber(samples[1],40,line,2);
+	drawNumber(samples[2],80,line,2);
+	drawNumber(samples[3],120,line,2);
+	drawNumber(samples[4],160,line,2);
 }

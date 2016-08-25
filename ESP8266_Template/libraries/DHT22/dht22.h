@@ -19,17 +19,20 @@
 extern int sample_rh;
 extern int sample_t;
 extern int sample_valid;
-extern int bit_duration[82];
-extern int bit_duration_up[41];
-extern int bit_duration_down[41];
+extern int bit_duration_hi[41];
+extern int bit_duration_lo[41];
 extern unsigned char samples[5];
 
-// API
+// ********************* API *******************************************
 
 void dht22_init (void);		// Pin muxing and interrupt setup
 
 void dht22_read (void);		// Blocking read function, VERY long (up to 275 ms)
 
 void dht22_read_ed (void);	// Non-blocking read function, uses GPIO interrupt
+
+// ********************* DEBUG FUNCTIONS ********************************
+
+void dht22_sample_display ();	// display sample data on an ILI9341 LCD module
 
 #endif /* __DHT22_H__ */
