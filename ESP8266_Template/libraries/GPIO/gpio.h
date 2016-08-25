@@ -134,6 +134,9 @@ typedef struct {
 // Macro to enable GPIO interrupts
 #define ETS_GPIO_INTR_ENABLE() _xt_isr_unmask ((1 << ETS_GPIO_INUM))
 
+// Macro to disable GPIO interrupts
+#define ETS_GPIO_INTR_DISABLE() _xt_isr_mask ((1 << ETS_GPIO_INUM))
+
 /**  
   * @brief   Set GPIO pin output level.
   * 

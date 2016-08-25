@@ -11,6 +11,13 @@ void dht22_init (void)
 	PIN_PULLUP_EN (GPIO_PIN_REG (DHT_PIN));
 	// gpio_pin_intr_state_set (DHT_PIN, GPIO_PIN_INTR_NEGEDGE);
 	// gpio_pin_intr_state_set (DHT_PIN, 2); 	// temporary fix for double define
+	gpio_pin_intr_state_set (DHT_PIN, 1); 	// interrupt on rising edge
+
+	// Set the GPIO ISR
+	gpio_intr_handler_register(dht22_ISR, NULL);
+
+	// Enable GPIO interrupts : not required, performed in read function
+	// ETS_GPIO_INTR_ENABLE();
 }
 
 /* The following function is a dumb implementation, designed to verify sensor
@@ -27,9 +34,49 @@ int sample_valid = 0;	// value is 1 if the current sample is valid (good checksu
 int bit_duration[82];	// store the duration of each bit, in microseconds
 unsigned char samples[5];
 
+// call this after a read to turn intervals into usable data
+void dht22_sample_decoding()
+{
+	int ix, bits;
+
+	// decoding the samples
+		unsigned char b;
+		int byte_cnt;
+
+		ix = 3;		// looking at high state durations only, post start bit
+		for (byte_cnt = 0; byte_cnt < 5; byte_cnt++)
+		{
+			samples[byte_cnt] = 0;
+			for (bits = 0, b = 0x80; bits < 8; bits++ , ix += 2)
+			{
+				if (bit_duration[ix] > 30)
+					samples[byte_cnt] |= b;
+
+				b = b >> 1;
+			}
+		}
+
+		sample_rh = (samples[0] << 8) + samples[1];
+		sample_t = (samples[2] << 8) + samples[3];
+
+		uint16_t chksum = samples[0];
+		chksum += samples[1];
+		chksum += samples[2];
+		chksum += samples[3];
+		chksum &= 0x00FF;
+
+		// if (samples[0]+samples[1]+samples[2]+samples[3] == samples[4])
+		if (chksum == (uint16_t) samples[4])
+			sample_valid = 1;
+		else
+			sample_valid = 0;
+}
+
 void dht22_read (void)
 {
-	// os_delay_us(1);
+	// given this function's long duration, feed the watchdog first
+	system_soft_wdt_feed();
+
 	int cnt = 0;		// bit counter
 	int i = 0;			// bit duration counter (in microseconds)
 
@@ -38,15 +85,15 @@ void dht22_read (void)
 	// Start sequence
 	// 250ms of high
 	GPIO_OUTPUT_SET(DHT_PIN, 1);
-	os_delay_us (50000);	system_soft_wdt_feed();
-	os_delay_us (50000);	system_soft_wdt_feed();
-	os_delay_us (50000);	system_soft_wdt_feed();
-	os_delay_us (50000);	system_soft_wdt_feed();
-	os_delay_us (50000);	system_soft_wdt_feed();
+	os_delay_us (50000);
+	os_delay_us (50000);
+	os_delay_us (50000);
+	os_delay_us (50000);
+	os_delay_us (50000);
 	// vTaskDelay (1);		// Also works
 	// Hold low for 20ms
 	GPIO_OUTPUT_SET(DHT_PIN, 0);
-	os_delay_us (20000);	system_soft_wdt_feed();
+	os_delay_us (20000);
 	// vTaskDelay (1);		// Also works
 	// High for 40us
 	GPIO_OUTPUT_SET(DHT_PIN, 1);
@@ -92,8 +139,6 @@ void dht22_read (void)
 	int ix = 2;
 	for (bits = 1; bits<41; bits++)
 	{
-		system_soft_wdt_feed();
-
 		// measure low state
 		while (GPIO_INPUT_GET(DHT_PIN) == 0)
 		{
@@ -110,35 +155,103 @@ void dht22_read (void)
 		ix++;
 	}
 
-	// decoding the samples
-	unsigned char b;
-	int byte_cnt;
+	dht22_sample_decoding();
+}
 
-	ix = 3;		// looking at high state durations only, post start bit
-	for (byte_cnt = 0; byte_cnt < 5; byte_cnt++)
+/* "Partially event-driven" version
+ *
+ * "start function" returns non-zero if busy. The exact value is the number of bits
+ * that still remain to be read.
+ */
+
+// globals
+int remaining_bits = 0;
+int bit_index = -1;
+
+int dht22_read_ed (void)
+{
+	if (bit_index != -1)		// this value is used to indicate no read is in progress
+		return 0;
+
+	bit_index = 0;				// ammounts to indicating that a read is in progress
+
+	ETS_GPIO_INTR_DISABLE();	// so as not to self-interrupt while sending a read command
+
+	// Send a read command :
+	// 250ms of high
+	GPIO_OUTPUT_SET(DHT_PIN, 1);
+	vTaskDelay (25);		// 1 tick is 10 ms according to port comments
+	// Hold low for 20ms
+	GPIO_OUTPUT_SET(DHT_PIN, 0);
+	vTaskDelay (2);
+	// High for 40us
+	GPIO_OUTPUT_SET(DHT_PIN, 1);
+	os_delay_us(40);
+	// Set DHT_PIN pin as an input
+	GPIO_DIS_OUTPUT(DHT_PIN);
+
+	// Enable GPIO interrupt
+	ETS_GPIO_INTR_ENABLE();
+
+	return 0;	// and we're done.
+}
+
+void dht22_ISR (uint32 mask, void* argument)
+{
+	// this ISR assumes there's no other GPIO interrupt source than the DHT22
+	// it will trigger on I/O pin rising
+	// the general idea is to then poll the I/O pin every microsecond until it falls.
+
+	// this port doesn't have a ISR-specific macro, not sure this works :
+	//portENTER_CRITICAL();
+	// Actually they seem to be causing hang-ups !
+
+	// glitch protection
+	if (GPIO_INPUT_GET(DHT_PIN) == 0)
 	{
-		samples[byte_cnt] = 0;
-		for (bits = 0, b = 0x80; bits < 8; bits++ , ix += 2)
-		{
-			if (bit_duration[ix] > 30)
-				samples[byte_cnt] |= b;
-
-			b = b >> 1;
-		}
+		// "rearm" the interrupt (not sure this is actually necessary...)
+		uint32_t gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
+		GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status );
+		return;
 	}
 
-	sample_rh = (samples[0] << 8) + samples[1];
-	sample_t = (samples[2] << 8) + samples[3];
+	// index of the duration for this bit
+	int dur_idx = (bit_index << 1) + 1;
 
-	uint16_t chksum = samples[0];
-	chksum += samples[1];
-	chksum += samples[2];
-	chksum += samples[3];
-	chksum &= 0x00FF;
+	// Reinitialize counter
+	bit_duration[dur_idx] = 0;
 
-	// if (samples[0]+samples[1]+samples[2]+samples[3] == samples[4])
-	if (chksum == (uint16_t) samples[4])
-		sample_valid = 1;
+	// Time until pin goes low
+	while (GPIO_INPUT_GET(DHT_PIN) == 1)
+	{
+		os_delay_us(1);
+		bit_duration[dur_idx]++;
+	}
+
+	// Detect read completion
+	if (bit_index == 40)
+	{
+		bit_index = -1;		// indicates no read is in progress
+
+		ETS_GPIO_INTR_DISABLE();	// also disable GPIO interrupts
+
+		dht22_sample_decoding();	// call function to decode the results
+	}
 	else
-		sample_valid = 0;
+	{
+		bit_index++;	// update index
+
+		// "rearm" the interrupt (not sure this is actually necessary...)
+		uint32_t gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
+		GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status );
+	}
+
+	 // this port doesn't have a ISR-specific macro, not sure this works :
+	 //portEXIT_CRITICAL();
+}
+
+// returns 1 until a complete sample has been read
+int dht22_read_ed_busy (void)
+{
+	return (bit_index == -1) ? 0 : 1;
 }

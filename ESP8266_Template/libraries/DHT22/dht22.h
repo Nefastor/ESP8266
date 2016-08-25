@@ -31,5 +31,11 @@ void dht22_init (void);
 
 void dht22_read (void);
 
+extern int remaining_bits;
+extern int bit_index;
+
+int dht22_read_ed (void);
+void dht22_ISR (uint32 mask, void* argument);
+
 
 #endif /* __DHT22_H__ */
