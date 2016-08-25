@@ -34,10 +34,33 @@ int sample_valid = 0;	// value is 1 if the current sample is valid (good checksu
 int bit_duration[82];	// store the duration of each bit, in microseconds
 unsigned char samples[5];
 
+// simplified variant for the event-driven version
+void dht22_sample_decoding_ed()
+{
+	// decoding the samples
+
+	sample_rh = (samples[0] << 8) + samples[1];
+	sample_t = (samples[2] << 8) + samples[3];
+
+	uint16_t chksum = samples[0];
+	chksum += samples[1];
+	chksum += samples[2];
+	chksum += samples[3];
+	chksum &= 0x00FF;
+
+	// if (samples[0]+samples[1]+samples[2]+samples[3] == samples[4])
+	if (chksum == (uint16_t) samples[4])
+		sample_valid = 1;
+	else
+		sample_valid = 0;
+}
+
 // call this after a read to turn intervals into usable data
 void dht22_sample_decoding()
 {
 	int ix, bits;
+	int threshold = bit_duration[1] >> 1;	// Start bit duration divided by 2.
+	// start bit is usually measured as 51-53, low bit at 16-17, high bit as 47-48
 
 	// decoding the samples
 		unsigned char b;
@@ -175,6 +198,9 @@ int dht22_read_ed (void)
 
 	bit_index = 0;				// ammounts to indicating that a read is in progress
 
+	// clear previous results
+	samples[0] = samples[1] = samples[2] = samples[3] = samples[4] = 0;
+
 	ETS_GPIO_INTR_DISABLE();	// so as not to self-interrupt while sending a read command
 
 	// Send a read command :
@@ -199,15 +225,15 @@ int dht22_read_ed (void)
 void dht22_ISR (uint32 mask, void* argument)
 {
 	// this ISR assumes there's no other GPIO interrupt source than the DHT22
-	// it will trigger on I/O pin rising
-	// the general idea is to then poll the I/O pin every microsecond until it falls.
+	// it will trigger on I/O pin rising and measure how long it stays high, in µs.
 
-	// this port doesn't have a ISR-specific macro, not sure this works :
-	//portENTER_CRITICAL();
-	// Actually they seem to be causing hang-ups !
+	// this FreeRTOS port doesn't have a ISR-specific macro, not sure this works :
+	//portENTER_CRITICAL();   	// Actually they seem to be causing hang-ups !
 
-	// glitch protection
-	if (GPIO_INPUT_GET(DHT_PIN) == 0)
+	static int theshold = 0; // doesn't seem to work
+	int bit_timer = 0;
+
+	if (GPIO_INPUT_GET(DHT_PIN) == 0)		// glitch protection
 	{
 		// "rearm" the interrupt (not sure this is actually necessary...)
 		uint32_t gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
@@ -215,17 +241,41 @@ void dht22_ISR (uint32 mask, void* argument)
 		return;
 	}
 
-	// index of the duration for this bit
-	int dur_idx = (bit_index << 1) + 1;
-
-	// Reinitialize counter
-	bit_duration[dur_idx] = 0;
-
 	// Time until pin goes low
 	while (GPIO_INPUT_GET(DHT_PIN) == 1)
 	{
 		os_delay_us(1);
-		bit_duration[dur_idx]++;
+		bit_timer++;
+	}
+
+	if (bit_index == 0)		// then we just measured the start bit
+	{
+		theshold = bit_timer >> 1;	// anything longer than that is a "one"
+	}
+	else
+	{
+		// got a data bit : decode and store
+		// sample byte index for this bit :
+		int samplebyte = (bit_index - 1) >> 3; // each byte holds 8 bits
+		// "- 1" to get rid of start bit and get in the 0..39 range
+		// which bit in the byte ? we receive MSB to LSB
+		int bitinbyte = 7 - ((bit_index - 1) & 0x07);
+		// mask for that bit
+		unsigned char bitmsk = 1 << bitinbyte;
+		// is the bit a one ? (longer than threshold ?)
+		if (bit_timer > theshold)
+			samples[samplebyte] |= bitmsk;
+
+		// Also store the timing data for debugging
+		int dur_idx = (bit_index << 1) + 1;   // index of the duration for this bit
+		bit_duration[dur_idx] = bit_timer;
+
+		// Also store the bits as integers in the timing array, for tests
+		if (bit_timer > theshold)
+			bit_duration[dur_idx - 1] = 1;
+		else
+			bit_duration[dur_idx - 1] = 0;
+
 	}
 
 	// Detect read completion
@@ -235,7 +285,7 @@ void dht22_ISR (uint32 mask, void* argument)
 
 		ETS_GPIO_INTR_DISABLE();	// also disable GPIO interrupts
 
-		dht22_sample_decoding();	// call function to decode the results
+		dht22_sample_decoding_ed();	// call function to decode the results
 	}
 	else
 	{

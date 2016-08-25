@@ -30,6 +30,9 @@
 // Include your own WiFi credentials
 #include "credentials.h" // contains WIFI_SSID and WIFI_PASS const strings for your WiFi network
 
+// For sprintf
+#include <stdio.h>
+
 // Sample display routine
 void sample_display ()
 {
@@ -145,6 +148,15 @@ void task_lcd_3b(void *pvParameters)
 		{
 			sample_display ();
 			sample_valid = 0;	// sample "consumed"
+
+			// send a packet to the PC through UDP (use broadcast address for simplicity)
+			// first create a string from temperature and humidity samples
+			char payload[50];
+			// for some reason "%f" format doesn't produce anything... ESP issue ?
+			// sprintf (payload, "%f - %f",(float) sample_rh / 10.0,(float) sample_t / 10.0);
+			// sprintf (payload, "%i - %i",sample_rh, sample_t);
+			sprintf (payload, "%i.%i - %i.%i",sample_rh / 10, sample_rh % 10, sample_t / 10, sample_t % 10);
+			// drawString(payload,0,0,4);	// Font 4 is a medium font
 		}
 
 		vTaskDelay (1);	// 10 ms delay = 100 Hz execution
@@ -170,6 +182,14 @@ void user_init(void)
 	// Deactivate WiFi to prevent "pause" on boot and save the planet. I mean power.
 	// wifi_set_opmode(NULL_MODE);
 	// new : I'm adding WiFi transmission of the samples !
+	wifi_set_opmode(STATIONAP_MODE);
+
+	// set WiFi credentials and connect to network
+	struct station_config *config = (struct station_config *)zalloc(sizeof(struct station_config));
+	sprintf(config->ssid, WIFI_SSID);
+	sprintf(config->password, WIFI_PASS);
+	wifi_station_set_config_current(config);	// should test the return value if network presence not guaranteed
+	free(config);
 
 	// Initialize DHT22 sensor module
 	dht22_init();
