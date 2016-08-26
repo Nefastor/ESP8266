@@ -8,6 +8,9 @@
 #ifndef __DHT22_H__
 #define __DHT22_H__
 
+// enables code that's only useful for learning and debugging
+#define __DHT22_DEBUG__
+
 // Which pin is the sensor connected to ? Use only GPIO 0..15
 // Note : the WeMos D1 Mini DHT22 shield uses pin D4 = GPIO2
 #define 	DHT_PIN		2
@@ -19,9 +22,12 @@
 extern int sample_rh;
 extern int sample_t;
 extern int sample_valid;
+
+#ifdef __DHT22_DEBUG__
 extern int bit_duration_hi[41];
 extern int bit_duration_lo[41];
 extern unsigned char samples[5];
+#endif // __DHT22_DEBUG__
 
 // ********************* API *******************************************
 
@@ -33,6 +39,8 @@ void dht22_read_ed (void);	// Non-blocking read function, uses GPIO interrupt
 
 // ********************* DEBUG FUNCTIONS ********************************
 
+#ifdef __DHT22_DEBUG__
 void dht22_sample_display ();	// display sample data on an ILI9341 LCD module
+#endif // __DHT22_DEBUG__
 
 #endif /* __DHT22_H__ */

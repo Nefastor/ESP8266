@@ -52,11 +52,12 @@ void task_lcd_1(void *pvParameters)
 // now using the event-driven version
 void task_lcd_2(void *pvParameters)
 {
-	vTaskDelay (200);	// might be at least a couple seconds
+	vTaskDelay (100);	// might be at least a couple seconds
 
 	while (1)
 	{
-		vTaskDelay (200);	// might be at least a couple seconds
+		vTaskDelay (100);	// might be at least a couple seconds
+		// running at 160 MHz, 1 tick is 5 ms, not 10 ms.
 
 		// given this task's long delays, feed the watchdog first
 		system_soft_wdt_feed();
@@ -85,6 +86,7 @@ void task_lcd_3a(void *pvParameters)
 	while (1)
 	{
 		vTaskDelay (200);	// might be at least a couple seconds
+		// 200 = 1s in practice because of 160 MHz operation
 
 		// given this task's long delays, feed the watchdog first
 		system_soft_wdt_feed();
@@ -111,8 +113,6 @@ void task_lcd_3b(void *pvParameters)
 			// first create a string from temperature and humidity samples
 			char payload[50];
 			// for some reason "%f" format doesn't produce anything... ESP issue ?
-			// sprintf (payload, "%f - %f",(float) sample_rh / 10.0,(float) sample_t / 10.0);
-			// sprintf (payload, "%i - %i",sample_rh, sample_t);
 			sprintf (payload, "%i.%i - %i.%i",sample_rh / 10, sample_rh % 10, sample_t / 10, sample_t % 10);
 			// drawString(payload,0,0,4);	// Font 4 is a medium font
 		}
