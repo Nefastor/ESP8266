@@ -19,11 +19,16 @@ int bit_duration_hi[41];	// duration of low state for start bit and data bits
 int bit_duration_lo[41];	// duration of high state for start bit and data bits
 #endif // __DHT22_DEBUG__
 
-// decode sample[] into integer values (stored into globals)
+// Decode sample[] into integer values (stored into globals)
+// I made it a separate function because that part is common to all sensor reading functions
 void dht22_sample_decoding()
 {
-	sample_rh = (samples[0] << 8) + samples[1];
-	sample_t = (samples[2] << 8) + samples[3];
+	sample_rh = (samples[0] << 8) + samples[1];		// relative humidity
+
+	if (samples[2] & 0x80)
+		sample_t = -(((samples[2] & 0x7F) << 8) + samples[3]);	// temperature is negative
+	else
+		sample_t = (samples[2] << 8) + samples[3];				// temperature is positive
 
 	// Cheksum : accumulate the first four bytes on a word and keep only the LSB
 	unsigned char chksum = (uint16_t)(samples[0] + samples[1] + samples[2] + samples[3]) & 0x00FF;
@@ -31,110 +36,60 @@ void dht22_sample_decoding()
 	sample_valid = (chksum == samples[4]) ? 1 : 0;
 }
 
-// call this after a read to turn intervals into usable data
-void dht22_sample_decoding_thresh()
-{
-	int ix, bits;
-	int threshold = bit_duration_hi[0] >> 1;	// Start bit duration divided by 2.
-	// start bit is usually measured as 51-53, low bit at 16-17, high bit as 47-48
-
-	// decoding the samples
-	unsigned char b;		// bit mask
-	int byte_cnt;			// samples[] index
-
-	ix = 1;		// skip start bit
-	for (byte_cnt = 0; byte_cnt < 5; byte_cnt++)
-	{
-		samples[byte_cnt] = 0;
-		for (bits = 0, b = 0x80; bits < 8; bits++ , ix++)
-		{
-			if (bit_duration_hi[ix] > threshold)  // looking at high state durations only
-				samples[byte_cnt] |= b;
-
-			b = b >> 1;
-		}
-	}
-
-	dht22_sample_decoding();	// turn samples[] into decimal values and check sum.
-}
-
 /* The following function is a dumb implementation, designed to verify sensor
  * operation prior to optimizing the code for multitasking support.
  *
  * Very stable, which is why I'm currently leaving it in. It is also useful for
- * learning how the sensor works (and checking that it does)
+ * learning how the sensor works (and checking that it does).
  */
 
-// ICACHE_FLASH_ATTR
 void dht22_read (void)
 {
 	int k;		// bit index
 	int t;		// bit duration counter (in microseconds)
 
-	// given this function's long duration, feed the watchdog first
-	// oddly, doesn't seem to work from here !
-	// system_soft_wdt_feed();
-
 	// clear previous results
 	for (t=0;t<41;t++)
 		bit_duration_hi[t] = bit_duration_lo[t] = 0;
 
-	// USE A CRITICAL SECTION
+	// Enter a critical section, preventing FreeRTOS from interrupting the read
 	taskENTER_CRITICAL();
 
 	// Send a read command to the sensor
-	GPIO_OUTPUT_SET(DHT_PIN, 1);	// keep the pin high for 250 ms
-	os_delay_us (100);			// 50 ms also works. Even 1ms ! Even 0.1ms (may have dropped frames)
-//	os_delay_us (50000);
-//	os_delay_us (50000);
-//	os_delay_us (50000);
-//	os_delay_us (50000);
+	GPIO_OUTPUT_SET(DHT_PIN, 1);	// Start from a high state...
+	os_delay_us (100);			// ... stay there for a short while (0.1 ms)...
 
-	// system_soft_wdt_feed();	// doesn't help
+	GPIO_OUTPUT_SET(DHT_PIN, 0);	// ... then hold the pin low for 1 ms...
+	os_delay_us (1000);
 
-	GPIO_OUTPUT_SET(DHT_PIN, 0);	// then hold it low for 20 ms
-	//os_delay_us (20000);
-	os_delay_us (1000);		// According to datasheet, 1000 should work
-	// 200 is too fast. 500 is limit.
-
-	// system_soft_wdt_feed();	// doesn't help
-
-	GPIO_OUTPUT_SET(DHT_PIN, 1);	// and finally, high for 40 탎
+	GPIO_OUTPUT_SET(DHT_PIN, 1);	// ... and finally, set it high for 40 탎
 	os_delay_us(40);
 
-	GPIO_DIS_OUTPUT(DHT_PIN);		// set DHT_PIN pin as an input
+	GPIO_DIS_OUTPUT(DHT_PIN);		// Set DHT_PIN pin as an input to wait for the sensor's data
 
-	// at this point, the sensor should immediately pull down the line, and keep
-	// it down for 80 us. Let's see if it does.
-
-	// wait for pin to drop (loop should exit immediately)
-	// tests show this works (duration : 0)
-
+	// Wait for the sensor to lower the pin (it should be immediate but the specs allow for an 80 탎 delay)
 	t = 0;
 	while ((GPIO_INPUT_GET(DHT_PIN) == 1) && (t++ < DHT_TIMEOUT))
 		os_delay_us(1);
 
-	if (t >= DHT_TIMEOUT)	return;	// The sensor failed to respond
-	// in this case, the last sample received (if valid) is still available
+	if (t >= DHT_TIMEOUT)	return;	// The sensor failed to respond : abort
 
-	// getting here means we're going to receive 41 bits of data, each in the form
-	// of a low state followed by a high state. Each bit's actual value is defined by
-	// the relative length of each state, so we're going to measure those.
+	// Receive 41 bits. Each is in low-then-high form with varying duty cycle, which
+	// means the most robust reading method is measuring the waveform's timing.
 
-	// int bits;
-
-	for (k = 0 ; k < 41 ; k++)
+	for (k = 0 ; k < 41 ; k++)		// 1 start bit + 40 data bits
 	{
-		// measure low state
+		// measure how long the pin stays low
 		while (GPIO_INPUT_GET(DHT_PIN) == 0)
 		{
-			os_delay_us(1);
+			os_delay_us(1);			// The exact delay doesn't really matter since we're measuring relative durations
 			bit_duration_lo[k]++;
 			// timeout test
 			if (bit_duration_lo[k] > DHT_TIMEOUT) break;	// something went wrong
 		}
 		if (bit_duration_lo[k] > DHT_TIMEOUT) break; // also break from outer loop
-		// measure high state
+
+		// measure how long the pin stays high
 		while (GPIO_INPUT_GET(DHT_PIN) == 1)
 		{
 			os_delay_us(1);
@@ -145,14 +100,13 @@ void dht22_read (void)
 		if (bit_duration_lo[k] > DHT_TIMEOUT) break; // also break from outer loop
 	}
 
+	// Timing measurements are complete, we can leave the critical section.
 	taskEXIT_CRITICAL();
 
-	if (bit_duration_lo[k] > DHT_TIMEOUT) return;	// no valid data to decode
+	if (t > DHT_TIMEOUT) return;	// no valid data to decode
 
-	// still hangs even with timeouts (as they are implemented... maybe I'm wrong)
-
-	// decode the durations into binary data
-	t = bit_duration_hi[0] >> 1; 	// threshold = start bit up time divided by two
+	// Decode measured bit durations into binary data
+	t = bit_duration_hi[0] >> 1; 	// threshold = start bit "up" time divided by two
 	unsigned char m = 0x80;			// bit mask
 	unsigned char* p = samples;		// pointer to the bytes array
 
@@ -172,7 +126,7 @@ void dht22_read (void)
 		}
 	}
 
-	// dht22_sample_decoding_thresh(); replaced by the above
+	// Decode the sensor reading's five bytes into temperature and
 	dht22_sample_decoding();
 }
 
@@ -183,7 +137,7 @@ void dht22_read (void)
  */
 
 // globals
-int bit_index = -1;
+int bit_index = -1;		// to do : find a way to eliminate this (static local variable)
 
 void dht22_read_ed (void)
 {
@@ -216,14 +170,11 @@ void dht22_read_ed (void)
 	return;	// and we're done.
 }
 
-// ISR with timeout
+// ISR (to do : check if it can be interrupted, as this FreeRTOS port doesn't have ISR critical section macros => they might not be required)
 void dht22_ISR (uint32 mask, void* argument)
 {
 	// this ISR assumes there's no other GPIO interrupt source than the DHT22
 	// it will trigger on I/O pin rising and measure how long it stays high, in 탎.
-
-	// this FreeRTOS port doesn't have a ISR-specific macro, not sure this works :
-	//portENTER_CRITICAL();   	// Actually they seem to be causing hang-ups !
 
 	static int theshold = 0;
 	int bit_timer = 0;
@@ -299,92 +250,6 @@ void dht22_ISR (uint32 mask, void* argument)
 		uint32_t gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
 		GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status );
 	}
-
-	 // this port doesn't have a ISR-specific macro, not sure this works :
-	 //portEXIT_CRITICAL();
-
-}
-
-//ICACHE_FLASH_ATTR
-void dht22_ISR_unstable (uint32 mask, void* argument)
-{
-	// this ISR assumes there's no other GPIO interrupt source than the DHT22
-	// it will trigger on I/O pin rising and measure how long it stays high, in 탎.
-
-	// this FreeRTOS port doesn't have a ISR-specific macro, not sure this works :
-	//portENTER_CRITICAL();   	// Actually they seem to be causing hang-ups !
-
-	static int theshold = 0;
-	int bit_timer = 0;
-
-	if (GPIO_INPUT_GET(DHT_PIN) == 0)		// glitch protection
-	{
-		// "rearm" the interrupt (not sure this is actually necessary...)
-		uint32_t gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
-		GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status );
-		return;
-	}
-
-	// Time until pin goes low
-	while (GPIO_INPUT_GET(DHT_PIN) == 1)
-	{
-		os_delay_us(1);
-		bit_timer++;
-	}
-
-	if (bit_index == 0)		// then we just measured the start bit
-	{
-		theshold = bit_timer >> 1;	// anything longer than that is a "one"
-
-		// for debugging
-		bit_duration_hi[0] = bit_timer;
-	}
-	else
-	{
-		// got a data bit : decode and store
-		// sample byte index for this bit :
-		int samplebyte = (bit_index - 1) >> 3; // each byte holds 8 bits
-		// "- 1" to get rid of start bit and get in the 0..39 range
-		// which bit in the byte ? we receive MSB to LSB
-		int bitinbyte = 7 - ((bit_index - 1) & 0x07);
-		// mask for that bit
-		unsigned char bitmsk = 1 << bitinbyte;
-		// is the bit a one ? (longer than threshold ?)
-		if (bit_timer > theshold)
-			samples[samplebyte] |= bitmsk;
-
-		// Also store the timing data for debugging
-		bit_duration_hi[bit_index] = bit_timer;
-
-		// Also store the bits as integers in the timing array, for tests
-		if (bit_timer > theshold)
-			bit_duration_lo[bit_index] = 1;
-		else
-			bit_duration_lo[bit_index] = 0;
-
-	}
-
-	// Detect read completion
-	if (bit_index == 40)
-	{
-		bit_index = -1;		// indicates no read is in progress
-
-		ETS_GPIO_INTR_DISABLE();	// also disable GPIO interrupts
-
-		dht22_sample_decoding();	// call function to decode the results
-	}
-	else
-	{
-		bit_index++;	// update index
-
-		// "rearm" the interrupt (not sure this is actually necessary...)
-		uint32_t gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
-		GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status );
-	}
-
-	 // this port doesn't have a ISR-specific macro, not sure this works :
-	 //portEXIT_CRITICAL();
-
 }
 
 // returns 1 until a complete sample has been read
@@ -443,16 +308,19 @@ void dht22_sample_display ()
 		}
 	}
 
-	// displaying the samples
-	line += 16;
-	drawNumber(sample_rh,0,line,2);
-	drawNumber(sample_t,80,line,2);
-	drawNumber(sample_valid,160,line,2);
-
+	// display the samples as five bytes
 	line += 16;
 	drawNumber(samples[0],0,line,2);
 	drawNumber(samples[1],40,line,2);
 	drawNumber(samples[2],80,line,2);
 	drawNumber(samples[3],120,line,2);
 	drawNumber(samples[4],160,line,2);
+
+	// display the samples as decoded words and validity flags
+	line += 16;
+	drawNumber(sample_rh,0,line,2);
+	drawNumber(sample_t,80,line,2);
+	drawNumber(sample_valid,160,line,2);
+
+
 }

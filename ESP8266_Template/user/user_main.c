@@ -33,31 +33,15 @@
 // For sprintf
 #include <stdio.h>
 
-void task_lcd_1(void *pvParameters)
+// This task demonstrates the boring, blocking way of reading a DHT22
+void task_demo_1(void *pvParameters)
 {
-	vTaskDelay (200);	// might be at least a couple seconds
+	// Upon powering the sensor, no valid reading will be available for 1 second
+	vTaskDelay (200);	// Running at 80 MHz, 1 second = 100 ticks : do the math
 
 	while (1)
 	{
-		vTaskDelay (200);	// might be at least a couple seconds
-
-		//portENTER_CRITICAL();
-		dht22_read ();
-		//portEXIT_CRITICAL();
-
-		dht22_sample_display ();
-	}
-}
-
-// now using the event-driven version
-void task_lcd_2(void *pvParameters)
-{
-	vTaskDelay (100);	// might be at least a couple seconds
-
-	while (1)
-	{
-		vTaskDelay (100);	// might be at least a couple seconds
-		// running at 160 MHz, 1 tick is 5 ms, not 10 ms.
+		vTaskDelay (400);	// DHT22 specs recommend a 0.5 Hz sampling rate, but it can work faster (up to 2 Hz)
 
 		// given this task's long delays, feed the watchdog first
 		system_soft_wdt_feed();
@@ -65,21 +49,13 @@ void task_lcd_2(void *pvParameters)
 		// start reading
 		dht22_read ();
 
-		// wait for read to complete, then show the results
-		//bit_duration[0] = 0;	// debug only - measuring response time
-		//while (dht22_read_ed_busy ())
-		//{
-		//	bit_duration[0]++;
-			vTaskDelay (1);	// 10 ms delay. The whole read can't exceed 5 ms.
-		//}
-
-		//if (dht22_read_ed_busy() == 0) // only display valid samples
-			dht22_sample_display ();
+		// display the results
+		dht22_sample_display ();
 	}
 }
 
-// now split measurement and display into two tasks
-void task_lcd_3a(void *pvParameters)
+// now split measurement and display into two tasks and use the interrupt-driven read function
+void task_demo_2(void *pvParameters)
 {
 	vTaskDelay (200);	// might be at least a couple seconds
 
@@ -98,23 +74,22 @@ void task_lcd_3a(void *pvParameters)
 
 // to do : add code to send data over WiFi.
 
-void task_lcd_3b(void *pvParameters)
+void task_demo_3(void *pvParameters)
 {
 	while (1)
 	{
-		dht22_sample_display ();
-
 		if (sample_valid == 1)
 		{
-
-			//sample_valid = 0;	// sample "consumed"
+			dht22_sample_display ();
 
 			// send a packet to the PC through UDP (use broadcast address for simplicity)
 			// first create a string from temperature and humidity samples
 			char payload[50];
 			// for some reason "%f" format doesn't produce anything... ESP issue ?
 			sprintf (payload, "%i.%i - %i.%i",sample_rh / 10, sample_rh % 10, sample_t / 10, sample_t % 10);
-			// drawString(payload,0,0,4);	// Font 4 is a medium font
+			drawString(payload,0,290,4);	// Font 4 is a medium font
+
+			sample_valid = 0;	// sample "consumed"
 		}
 
 		vTaskDelay (1);	// 10 ms delay = 100 Hz execution
@@ -169,9 +144,9 @@ void user_init(void)
 
     // FreeRTOS task creation : function, name, stack depth, parameter to function, priority, handle
     // for more details read : http://www.freertos.org/a00125.html
-    // xTaskCreate(task_lcd_2, "tsk1", 256, NULL, 2, NULL);
+    // xTaskCreate(task_demo_1, "tsk1", 256, NULL, 2, NULL);
 
-    xTaskCreate(task_lcd_3a, "tsk1", 256, NULL, 2, NULL);
-    xTaskCreate(task_lcd_3b, "tsk2", 256, NULL, 2, NULL);
+    xTaskCreate(task_demo_2, "tsk1", 256, NULL, 2, NULL);
+    xTaskCreate(task_demo_3, "tsk2", 256, NULL, 2, NULL);
 }
 
