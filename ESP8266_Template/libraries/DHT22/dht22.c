@@ -1,8 +1,15 @@
-
+/*
+ * Various notes:
+ * - DHT22 data line may be glitchy and/or the sensor may time-out, so a time-out
+ *   counter and test are necessary to ensure stability. In case of time-out, the
+ *   current read is aborted.
+ *
+ * */
 
 #include "esp_common.h"		// Espressif register names, etc...
 #include "gpio.h"			// Nefastor's GPIO library
 #include "dht22.h"			// Nefastor's DHT22 library
+#include "ILI9341.h"		// Nefastor's ILI9341 library
 
 // output from the sensor in decimal form
 int sample_rh = 0;		// to do : change to uint16_t
@@ -25,10 +32,10 @@ void dht22_sample_decoding()
 {
 	sample_rh = (samples[0] << 8) + samples[1];		// relative humidity
 
+	sample_t = ((samples[2] & 0x7F) << 8) + samples[3];
+
 	if (samples[2] & 0x80)
-		sample_t = -(((samples[2] & 0x7F) << 8) + samples[3]);	// temperature is negative
-	else
-		sample_t = (samples[2] << 8) + samples[3];				// temperature is positive
+		sample_t = -sample_t;	// temperature is negative
 
 	// Cheksum : accumulate the first four bytes on a word and keep only the LSB
 	unsigned char chksum = (uint16_t)(samples[0] + samples[1] + samples[2] + samples[3]) & 0x00FF;
@@ -152,20 +159,19 @@ void dht22_read_ed (void)
 	ETS_GPIO_INTR_DISABLE();	// so as not to self-interrupt while sending a read command
 
 	// Send a read command :
-	// 250ms of high
-	GPIO_OUTPUT_SET(DHT_PIN, 1);
-	vTaskDelay (1);		// 1 tick is 10 ms according to port comments
-	// Hold low for 20ms
-	GPIO_OUTPUT_SET(DHT_PIN, 0);
-	vTaskDelay (1);
-	// High for 40us
-	GPIO_OUTPUT_SET(DHT_PIN, 1);
-	os_delay_us(40);
-	// Set DHT_PIN pin as an input
-	GPIO_DIS_OUTPUT(DHT_PIN);
+	GPIO_OUTPUT_SET(DHT_PIN, 1);	// set pin for 0.1 ms
+	// vTaskDelay (1);
+	os_delay_us (100);
 
-	// Enable GPIO interrupt
-	ETS_GPIO_INTR_ENABLE();
+	GPIO_OUTPUT_SET(DHT_PIN, 0);	// clear pin and leave it there for 1 to 10 ms
+	vTaskDelay (1);					// while the pin stays low, let other tasks run
+
+	GPIO_OUTPUT_SET(DHT_PIN, 1);	// set the pin again, for 40 µs
+	os_delay_us(40);
+
+	GPIO_DIS_OUTPUT(DHT_PIN);		// Set DHT_PIN pin as an input
+
+	ETS_GPIO_INTR_ENABLE();			// Enable GPIO interrupt
 
 	return;	// and we're done.
 }
@@ -269,35 +275,38 @@ void dht22_init (void)
 }
 
 
-
-
-
-
 // ********************* DEBUG FUNCTIONS ********************************
 
 // display sample data on an ILI9341 LCD module
 // uses the ILI9341 library
+
 void dht22_sample_display ()
 {
+	// vanity
+	setTextColor (ILI9341_GREEN);
+	drawString(" Nefastor DHT22",0,0,4);
+
 	// experimental : display sensor start bit duration
 	int wid;
-	wid = drawNumber(bit_duration_lo[0],0,0,4);
-	wid += drawString (" - ",wid,0,4);
-	drawNumber(bit_duration_hi[0],wid,0,4);
+	//wid = drawNumber(bit_duration_lo[0],0,0,4);
+	//wid += drawString (" - ",wid,0,4);
+	//drawNumber(bit_duration_hi[0],wid,0,4);
 
-	// experimental : display all sensor bit durations (low + high phases)
+	// display all sensor bit durations (low + high phases)
 	int idx;
 	int col = 0;	// 0 for left, 1 for center, 2 for right
-	int line = 32;	// in pixels
-	//for (idx = 2; idx < 82; idx+=2)
-	for (idx = 1; idx < 41; idx++)
+	int line = 28;	// in pixels
+	for (idx = 0; idx < 41; idx++)
 	{
+		if (idx == 0)
+			setTextColor (ILI9341_RED);
+		else
+			setTextColor (ILI9341_WHITE);
+
 		wid = col * 80;	// values : 0, 80, 160
 
-		// wid += drawNumber(bit_duration[idx],wid,line,2);
 		wid += drawNumber(bit_duration_lo[idx],wid,line,2);
 		wid += drawString (" - ",wid,line,2);
-		// drawNumber(bit_duration[idx + 1],wid,line,2);
 		drawNumber(bit_duration_hi[idx],wid,line,2);
 
 		col++;
@@ -310,6 +319,7 @@ void dht22_sample_display ()
 
 	// display the samples as five bytes
 	line += 16;
+	setTextColor (ILI9341_YELLOW);
 	drawNumber(samples[0],0,line,2);
 	drawNumber(samples[1],40,line,2);
 	drawNumber(samples[2],80,line,2);
@@ -318,9 +328,14 @@ void dht22_sample_display ()
 
 	// display the samples as decoded words and validity flags
 	line += 16;
+	setTextColor (ILI9341_CYAN);
 	drawNumber(sample_rh,0,line,2);
 	drawNumber(sample_t,80,line,2);
 	drawNumber(sample_valid,160,line,2);
 
-
+	// display the fully-decoded sample as floating point data
+	char payload[20];
+	sprintf (payload, "%i.%i%% / %i.%iC",sample_rh / 10, sample_rh % 10, sample_t / 10, sample_t % 10);
+	setTextColor (ILI9341_MAGENTA);
+	drawString(payload,0,290,4);
 }

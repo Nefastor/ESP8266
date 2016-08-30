@@ -33,9 +33,13 @@ extern unsigned char samples[5];
 
 void dht22_init (void);		// Pin muxing and interrupt setup
 
+// Blocking API
 void dht22_read (void);		// Blocking read function, VERY long (up to 275 ms)
 
+// Non-blocking API ("ed" stands for "event-driven", a.k.a. "interrupt based"
 void dht22_read_ed (void);	// Non-blocking read function, uses GPIO interrupt
+
+int dht22_read_ed_busy (void);	// Returns 1 if a read is in progress
 
 // ********************* DEBUG FUNCTIONS ********************************
 
