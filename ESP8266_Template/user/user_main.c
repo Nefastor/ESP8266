@@ -27,6 +27,16 @@
 
 void task_lcd_1(void *pvParameters)
 {
+
+
+	while (1)
+	{
+		int adc = system_adc_read();
+
+		drawNumber(adc,0,0,6);
+	}
+
+
 	int color = 0;
 
 	drawString("All Hail Nefastor !",0,16,2);
