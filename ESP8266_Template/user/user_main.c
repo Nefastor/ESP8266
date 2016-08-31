@@ -18,14 +18,48 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "lwip/sockets.h"
-#include "lwip/dns.h"
-#include "lwip/netdb.h"
+//#include "lwip/sockets.h"
+//#include "lwip/dns.h"
+//#include "lwip/netdb.h"
 #include "lwip/udp.h"
 
 #include "ILI9341.h"
 
+#include <stdio.h>				// For sprintf
+
+#include "credentials.h"		// WiFi network credentials (WIFI_SSID and WIFI_PASS)
+#include "unity.h"
+
+// extern globals for debugging unity.c
+struct ip_addr unity_IP;
+
+// global variables I want to expose on the Unity front-end
+int	exposed_variable = 0x12345678;
+
 void task_lcd_1(void *pvParameters)
+{
+	drawString ("Waiting...",0,0,4);
+
+	// wait for connection to be established
+	// wait until reception and processing of a broadcast packet from Unity
+	while (unity_IP.addr == 0) vTaskDelay (1);	// delay is necessary, let other tasks work while waiting
+
+	char ip_addr[50];
+	int a = unity_IP.addr >> 24;
+	int b = (unity_IP.addr >> 16) & 0xFF;
+	int c = (unity_IP.addr >> 8) & 0xFF;
+	int d = unity_IP.addr & 0xFF;
+	sprintf (ip_addr,"%i.%i.%i.%i",d,c,b,a);	// reverse byte order
+	drawString (ip_addr,0,0,4);				// shows the host IP
+
+	// at this point, it's possible to setup the GUI
+	unity_register_int (&exposed_variable, "exposed_variable", 0, 1000, 0xA5);
+
+	while (1);
+}
+
+
+void task_lcd_1_old(void *pvParameters)
 {
 
 
@@ -33,7 +67,13 @@ void task_lcd_1(void *pvParameters)
 	{
 		int adc = system_adc_read();
 
-		drawNumber(adc,0,0,6);
+		char sample[5];
+		sprintf (sample,"%04i",adc);
+
+		//drawNumber(adc,0,0,6);
+		drawString (sample,0,0,6);
+
+		vTaskDelay(50);
 	}
 
 
@@ -69,16 +109,23 @@ void user_init(void)
 	// Go to 160 MHz
 	system_update_cpu_freq(160);
 
-	// Deactivate WiFi to prevent "pause" on boot and save the planet. I mean power.
-	wifi_set_opmode(NULL_MODE);
+	// Connect to WiFi network
+	wifi_set_opmode(STATION_MODE);	// need to set opmode before you set config
+	struct station_config *config = (struct station_config *)zalloc(sizeof(struct station_config));
+	sprintf(config->ssid, WIFI_SSID);
+	sprintf(config->password, WIFI_PASS);
+	wifi_station_set_config_current(config);
+	free(config);
 
 	// Initialize TFT (also takes care of HSPI)
 	begin();
-
 	setRotation(0);	// 0-2 : portrait. 1-3 : landscape
-
 	//fillScreen(0xFFFF);	// make the screen white
 	fillScreen(0x0000);		// make the screen black
+
+	// Initialize the Unity interface
+	unity_init ();
+
 
 	// Let's try something simple : printing a string to the LCD
 	// drawString("Test",0,0,2);	// Font 2 is a small font
