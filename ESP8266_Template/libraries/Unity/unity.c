@@ -3,17 +3,22 @@
 #include "unity.h"
 #include <string.h>	// C string functions
 
+// MCUnity state (mode)
+int unity_mode = UNITY_MODE_INIT;					// three modes : init / setup / update
+
+// Connection state
+
+struct ip_addr unity_IP;    	// The IP address of whatever machine send the broadcast packet
+struct udp_pcb *unity_pcb;		// Protocol Control Block
+
 // GUI Setup Storage
+
+xTaskHandle setup_task;			// FreeRTOS task handle for the task in change of setting upt eh GUI (application-specific)
+void (*setup_operations)();		// Pointer to a firmware-specific function containing calls to MCUnity setup operations
 
 int* unity_variables_int[UNITY_MAX_VARIABLES];		// pointers to the variables shared with the Unity front-end
 int	 unity_variables_int_occupancy = 0;				// index of the first available slot in the array above
-int  unity_mode = UNITY_SETUP_MODE;					// mode Setup : 0 / mode Update : 1
 
-// Connection status
-
-int unity_is_connected = UNITY_NOT_CONNECTED;
-struct ip_addr unity_IP;    	// The IP address of whatever machine send the broadcast packet
-struct udp_pcb *unity_pcb;		// Protocol Control Block
 
 
 // Utility functions for accessing packet data like a FIFO
@@ -107,7 +112,7 @@ void fifo_push_string (char* datastring)
  *
  */
 
-int	 unity_register_int (int* variable, const char* name, int min, int max, int look)
+int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_t flags)
 {
 	// this test can be omitted if proper design methodology is applied
 	//if (unity_is_connected != UNITY_IS_CONNECTED) return -1;  // no connection to a host running the Unity app
@@ -116,7 +121,7 @@ int	 unity_register_int (int* variable, const char* name, int min, int max, int 
 	//if (unity_mode != UNITY_SETUP_MODE) return -2; // only usable in UNITY_SETUP_MODE
 
 	// disabled for debugging only
-	// if (unity_variables_int_occupancy == UNITY_MAX_VARIABLES) return -3; // too many variables
+	if (unity_variables_int_occupancy == UNITY_MAX_VARIABLES) return -3; // too many variables
 
 	unity_variables_int[unity_variables_int_occupancy] = variable;
 
@@ -140,7 +145,7 @@ int	 unity_register_int (int* variable, const char* name, int min, int max, int 
 	fifo_push_int (*variable);		// send its current value
 	fifo_push_int (min);			// send min and max boundaries
 	fifo_push_int (max);
-	fifo_push_int (look);			// parameter to tell Unity how to display the variable
+	fifo_push_int (flags);			// parameter to tell Unity how to display the variable
 	fifo_push_string ((char*) name);// variable name, to be shown in the GUI
 
 	// send that packet !
@@ -153,55 +158,46 @@ int	 unity_register_int (int* variable, const char* name, int min, int max, int 
 
 
 
-
 // UDP callback : any packet sent by Unity will first go through here
 
 void unity_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip_addr *addr, u16_t port)
 {
   if (p != NULL)
   {
-	// get the one-byte packet type
-	// first let's cast the payload pointer to a byte array pointer:
-	/*uint8_t* */payload = (uint8_t*)p->payload;
-	// initialize payload FIFO index
-	fifo_start();
+	// initialize FIFO operation to read the packet payload :
+	payload = (uint8_t*)p->payload; // cast the payload pointer to a byte array pointer
+	fifo_start();	// initialize payload FIFO index
 
-	// uint8_t packet_type = (uint8_t) ((uint8_t*)p->payload)[0];
-	uint8_t packet_type = fifo_pop_byte(); // payload[0];
-
-    // process the packet's payload here...
-	if (unity_is_connected == UNITY_NOT_CONNECTED)
-	{
-		if (packet_type == UNITY_RX_BROADCAST)
-		{
-			// Unity just called ! Establish the connection !
-			unity_IP = *addr;	// copy the IP address of the remote host
-			// No need to send a reply : Unity will accept GUI setup packets from an ESP as a connection handshake
-			unity_is_connected = UNITY_IS_CONNECTED;
-		}
-
-		// Connected or not, the packet has been processed : time to leave !
-		pbuf_free(p);	// deallocate the packet buffer
-		return;			// exit the parser
-	}
+	// pop the first payload byte, which indicates the payload's type
+	uint8_t packet_type = fifo_pop_byte();
 
 	// getting here means the ESP is connected to Unity, time to parse that packet !
 	// the next two bytes are the payload size, let's get that first, then switch/case
 	// the packet type:
 
-	// RECODE EVERYTHING THAT FOLLOWS USING THE NEW FIFO FUNCTIONS
-
-	int payload_length = (payload[1] << 8) + payload[2];
-
-	uint32_t buf32;		// buffer for 32-bit field recomposition
+	uint8_t buf8 = 0x0;			// single-byte buffer
+	uint32_t buf32 = 0x0;		// buffer for 32-bit field recomposition
 
 	switch (packet_type)
 	{
+		case UNITY_RX_BROADCAST:	// update the IP address to the application
+			unity_IP = *addr;		// copy the IP address of the remote host running the Unity app
+			if (unity_mode == UNITY_MODE_INIT)
+				unity_mode = UNITY_MODE_SETUP;	// mode transition, only if necessary
+			// No need to send a reply : Unity will accept GUI setup packets from an ESP as a connection handshake
+			break;
 		case UNITY_RX_SET_INT:		// set "int" type variable
-			// first byte of payload is the variable index. Next four bytes are the value
+			// Next four bytes are the value
 			// get the pointer to the right variable and write it
-			buf32 = (payload[4] << 24) | (payload[5] << 16) | (payload[6] << 8) | payload[7];
-			*unity_variables_int[payload[3]] = (int) buf32;	// will that translate the sign properly ?
+			buf8 = fifo_pop_byte(); // payload byte 2 is the variable's index
+			buf32 = fifo_pop_byte() << 8;  // payload byte 3 is the value's MSB
+			buf32 = (buf32 | fifo_pop_byte()) << 8;
+			buf32 = (buf32 | fifo_pop_byte()) << 8;
+			buf32 |= fifo_pop_byte() << 8; // payload byte 6 is the value's LSB
+			*unity_variables_int[buf8] = (int) buf32;
+			// alternate method, could be more efficient here :
+			//buf32 = (payload[2] << 24) | (payload[3] << 16) | (payload[4] << 8) | payload[5];
+			//*unity_variables_int[payload[1]] = (int) buf32;	// will that translate the sign properly ?
 			break;
 		default:	// unsupported packet type
 			break;	// nothing to do : we're going straight to pubf deallocation and return
@@ -214,12 +210,23 @@ void unity_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip_ad
 
 
 // Unity interface initialization : this must be called ASAP following connection to the WiFi network
-void unity_init ()
+
+void unity_init (void (*setup_func)())
 {
 	// Setup UDP packet listener
 	unity_pcb = udp_new();		// allocate the PCB
 	udp_bind(unity_pcb, IP_ADDR_ANY, UNITY_NETWORK_PORT);
 	udp_recv(unity_pcb, unity_udp_recv, NULL);
+
+	// Save handle of setup task, in case Unity app requests a re-setup
+	setup_operations = setup_func;
 }
 
+void unity_setup ()
+{
+	// TO DO - MCUnity STATE TRANSITIONS !!!
+
+	// using a function pointer instead:
+	(*setup_operations)();		// call the firmware-specific GUI setup function
+}
 

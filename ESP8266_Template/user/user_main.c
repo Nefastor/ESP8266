@@ -35,8 +35,20 @@ struct ip_addr unity_IP;
 
 // global variables I want to expose on the Unity front-end
 int	exposed_variable = 0x12345678;
+int adc;
+int test = -120;
 
-void task_lcd_1(void *pvParameters)
+// Setup Unity GUI : centralize in a function that can be passed to MCUnity
+void MCUnity_setup_function ()
+{
+	// Application (firmware) specific GUI setup operations:
+	unity_setup_int (&exposed_variable, "exposed_variable", 0, 1000, 0xA5);
+	unity_setup_int (&adc, "ADC sample", 0, 1023, 0xA3);
+	unity_setup_int (&test, "Negative value test", -300, 300, -2);
+}
+
+// Establish connection to Unity application
+void task_gui_1(void *pvParameters)
 {
 	drawString ("Waiting...",0,0,4);
 
@@ -53,49 +65,26 @@ void task_lcd_1(void *pvParameters)
 	drawString (ip_addr,0,0,4);				// shows the host IP
 
 	// at this point, it's possible to setup the GUI
-	unity_register_int (&exposed_variable, "exposed_variable", 0, 1000, 0xA5);
+	// vTaskResume (setup_task);
+	unity_setup ();		// equivalent to calling MCUnity_setup_function() directly
 
-	while (1);
+	// task ends.
+	while (1)
+		vTaskDelay (100);
+
 }
 
-
-void task_lcd_1_old(void *pvParameters)
+// sample the ADC periodically
+void task_adc(void *pvParameters)
 {
-
-
 	while (1)
 	{
-		int adc = system_adc_read();
-
-		char sample[5];
-		sprintf (sample,"%04i",adc);
-
-		//drawNumber(adc,0,0,6);
-		drawString (sample,0,0,6);
-
+		adc = system_adc_read();
 		vTaskDelay(50);
 	}
-
-
-	int color = 0;
-
-	drawString("All Hail Nefastor !",0,16,2);
-
-	while(1)
-	{
-		color++;
-		if (color > 374)
-			color = 0;
-
-		setTextColor (color * 700);
-		drawString(" - nefastor.com -",0,112,4);
-		vTaskDelay (100);
-
-		setTextColor (0);	// black
-		drawString(" - nefastor.com -",0,112,4);
-		vTaskDelay (100);
-	}
 }
+
+
 
 /******************************************************************************
  * FunctionName : user_init
@@ -123,10 +112,6 @@ void user_init(void)
 	//fillScreen(0xFFFF);	// make the screen white
 	fillScreen(0x0000);		// make the screen black
 
-	// Initialize the Unity interface
-	unity_init ();
-
-
 	// Let's try something simple : printing a string to the LCD
 	// drawString("Test",0,0,2);	// Font 2 is a small font
 	// drawString("Test",0,16,4);	// Font 4 is a medium font
@@ -134,8 +119,12 @@ void user_init(void)
 	// There's also a font 7 (7-segment display) which only works for numbers :
 	// drawNumber(1234,0,200,7);
 
+	// MCUnity needs to know which firmware function will take care of GUI setup :
+	unity_init (MCUnity_setup_function);	// initialize with a pointer to a setup function
+
     // FreeRTOS task creation : function, name, stack depth, parameter to function, priority, handle
     // for more details read : http://www.freertos.org/a00125.html
-    xTaskCreate(task_lcd_1, "tsk1", 256, NULL, 2, NULL);
+    xTaskCreate(task_gui_1, "tsk1", 256, NULL, 2, NULL);
+    xTaskCreate(task_adc, "tsk3", 256, NULL, 2, NULL);
 }
 

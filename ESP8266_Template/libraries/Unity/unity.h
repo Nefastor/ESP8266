@@ -8,6 +8,9 @@
 #ifndef LIBRARIES_UNITY_UNITY_H_
 #define LIBRARIES_UNITY_UNITY_H_
 
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "lwip/udp.h"
 
 // extern globals for debugging
@@ -16,29 +19,36 @@ extern struct ip_addr unity_IP;
 // GUI Setup Storage
 #define UNITY_MAX_VARIABLES		10		// max. 255
 
-// Connection status
-#define UNITY_NOT_CONNECTED		0
-#define UNITY_IS_CONNECTED		1
-
 // Modes of operation
-#define UNITY_SETUP_MODE		0
-#define UNITY_UPDATE_MODE		1
+#define UNITY_MODE_INIT			0		// Firmware not connected to the application
+#define UNITY_MODE_SETUP		1		// GUI setup phase (system initialization)
+#define UNITY_MODE_UPDATE		2		// GUI update phase (system operating)
 
-// Network packet types (8-bit) FROM UNITY TO ESP
+// NETWORK PACKET TYPES ARE UNIQUE ACROSS BOTH TX AND RX
+// TX means ESP to Unity, RX means Unity to ESP
+
 #define UNITY_RX_BROADCAST		0x01		// Initial broadcast packet used to establish connection
-#define UNITY_RX_SET_INT		0x02		// Set the value of an "int" type variable
+#define UNITY_TX_SETUP_INT		0x02		// Setup integer variable GUI element
+#define UNITY_RX_SET_INT		0x03		// Set the value of an "int" type variable
 
-// Network packet types (8-bit) FROM ESP TO UNITY
-#define UNITY_TX_SETUP_INT		0x01		// Setup integer variable
 
 // Network parameters
 #define UNITY_NETWORK_PORT		55555
 
-void unity_init ();		// library and socket initialization
+/////////////////////////// API /////////////////////////////////
 
-int	 unity_register_int (int* variable, const char* name, int min, int max, int look);
+// Overall Init Function
 
-// UDP callback - only used internally
-// void unity_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip_addr *addr, u16_t port);
+void unity_init (void (*setup_func)());		// library and socket initialization
+
+// Overall GUI Setup Function
+
+void unity_setup ();		// triggers the execution of the MCUnity setup operations
+
+// GUI Setup operations
+
+int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_t flags);
+
+// GUI Update Functions
 
 #endif /* LIBRARIES_UNITY_UNITY_H_ */
