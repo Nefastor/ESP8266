@@ -55,7 +55,12 @@ void task_gui_1(void *pvParameters)
 	// wait for connection to be established
 	// wait until reception and processing of a broadcast packet from Unity
 	// TO DO - FIND A MORE ELEGANT WAY TO DO THIS
-	while (unity_IP.addr == 0) vTaskDelay (1);	// delay is necessary, let other tasks work while waiting
+	while (unity_not_ready())
+		vTaskDelay (1);	// delay is necessary, let other tasks work while waiting
+
+	// at this point, it's possible (and time) to setup the GUI
+	unity_setup ();		// equivalent to calling MCUnity_setup_function() directly
+
 
 	char ip_addr[50];
 	int a = unity_IP.addr >> 24;
@@ -65,8 +70,6 @@ void task_gui_1(void *pvParameters)
 	sprintf (ip_addr,"%i.%i.%i.%i",d,c,b,a);	// reverse byte order
 	drawString (ip_addr,0,0,4);				// shows the host IP
 
-	// at this point, it's possible (and time) to setup the GUI
-	unity_setup ();		// equivalent to calling MCUnity_setup_function() directly
 
 	// task ends.
 	while (1)

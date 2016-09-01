@@ -13,8 +13,7 @@ struct udp_pcb *unity_pcb;		// Protocol Control Block
 
 // GUI Setup Storage
 
-xTaskHandle setup_task;			// FreeRTOS task handle for the task in change of setting upt eh GUI (application-specific)
-void (*setup_operations)();		// Pointer to a firmware-specific function containing calls to MCUnity setup operations
+void (*setup_operations)();		// Pointer to a firmware-specific function containing all calls to MCUnity setup operations
 
 int* unity_variables_int[UNITY_MAX_VARIABLES];		// pointers to the variables shared with the Unity front-end
 int	 unity_variables_int_occupancy = 0;				// index of the first available slot in the array above
@@ -225,8 +224,23 @@ void unity_init (void (*setup_func)())
 void unity_setup ()
 {
 	// TO DO - MCUnity STATE TRANSITIONS !!!
+	// Actually, the "setup" mode is now superfluous if all setup happens here...
+	// ... unless this function is interrupted by another task
+	unity_mode = UNITY_MODE_SETUP;
+
+	// TO DO - reset any MCUnity GUI state information on the firmware side
+	// (since the setup operations will otherwise duplicate it)
+	unity_variables_int_occupancy = 0;		// clear "int" variables storage
 
 	// using a function pointer instead:
 	(*setup_operations)();		// call the firmware-specific GUI setup function
+
+	// finally, transition MCUnity to "update" state
+	unity_mode = UNITY_MODE_UPDATE;
 }
 
+// This is used to let the firmware handle the wait for connection anyway it sees fit
+int unity_not_ready ()
+{
+	return (unity_IP.addr == 0) ? 1 : 0;
+}

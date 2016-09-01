@@ -41,6 +41,10 @@ extern struct ip_addr unity_IP;
 
 void unity_init (void (*setup_func)());		// library and socket initialization
 
+// Test if MCUnity network connection is established, following unity_init
+
+int unity_not_ready ();			// test repeatedly until it returns zero
+
 // Overall GUI Setup Function
 
 void unity_setup ();		// triggers the execution of the MCUnity setup operations
