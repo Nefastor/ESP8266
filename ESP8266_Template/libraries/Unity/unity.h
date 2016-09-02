@@ -28,8 +28,8 @@ extern struct ip_addr unity_IP;
 // TX means ESP to Unity, RX means Unity to ESP
 
 #define UNITY_RX_BROADCAST		0x01		// Initial broadcast packet used to establish connection
-#define UNITY_TX_SETUP_INT		0x02		// Setup integer variable GUI element
-#define UNITY_RX_SET_INT		0x03		// Set the value of an "int" type variable
+#define UNITY_TX_SETUP_INT		0x04		// Setup integer variable GUI element
+#define UNITY_RX_SET_INT		0x05		// Set the value of an "int" type variable
 
 
 // Network parameters
