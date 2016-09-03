@@ -83,7 +83,17 @@ void task_adc(void *pvParameters)
 	while (1)
 	{
 		adc = system_adc_read();
-		vTaskDelay(50);
+
+		// variable has been modified: update the remote GUI
+		unity_update_int (1, 1);	// restrict update to adc variable
+
+		// unity_update_int (0, 3);	// send all variables (explicit)
+		// unity_update_int (0, 0); // send all variables (implicit)
+
+		// unity_update_int (1, 2); // send "adc" and the next variable
+
+
+		vTaskDelay(150);
 	}
 }
 

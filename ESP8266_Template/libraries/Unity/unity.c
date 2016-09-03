@@ -122,6 +122,7 @@ int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_
 	// disabled for debugging only
 	if (unity_variables_int_occupancy == UNITY_MAX_VARIABLES) return -3; // too many variables
 
+	// store a pointer to the variable
 	unity_variables_int[unity_variables_int_occupancy] = variable;
 
 	// to do : create and send a packet to Unity to inform it of the new variable and its index
@@ -243,4 +244,50 @@ void unity_setup ()
 int unity_not_ready ()
 {
 	return (unity_IP.addr == 0) ? 1 : 0;
+}
+
+
+// GUI Update Functions
+
+// These functions send the application the current value of registered variables of the same type
+// * offset is the index of the variable to be sent to the application
+// * count indicates how many variables should be sent
+// if count is zero, all variables from offset to the last are sent
+
+
+void unity_update_int (int offset, int count)
+{
+	//if (unity_not_ready ()) return;		// always returns for some reason
+
+	if (unity_mode != UNITY_MODE_UPDATE) return;
+
+	struct pbuf *transmission_pbuf;		// start creating a packet
+
+	// compute packet payload length and allocate
+	int cnt = count;	// how many variables are going to be sent ?
+	if (count == 0)
+		cnt = unity_variables_int_occupancy - offset;
+
+	// what size is the packet payload going to be
+	int tx_length = 2 + (cnt << 2);	// fixed length part + variables in bytes
+	// "<<2" is a cheap "*4" to turn count into a number of bytes
+
+	transmission_pbuf = pbuf_alloc(PBUF_TRANSPORT,tx_length,PBUF_RAM);
+
+	// initialize payload FIFO operations
+	payload = (uint8_t*) transmission_pbuf->payload;
+	fifo_start ();		// initialize payload FIFO mode
+
+	// push the fixed part
+	fifo_push_byte (UNITY_TX_UPDATE_INT);	// Command byte
+	fifo_push_byte ((uint8_t) offset);		// Variable index / unique ID offset
+
+	// push the variable-length part
+	int j;
+	for (j = 0; j < cnt; j++)
+		fifo_push_int (*unity_variables_int[offset + j]);
+
+	// send that packet !
+	udp_sendto(unity_pcb, transmission_pbuf, &unity_IP, UNITY_NETWORK_PORT);
+	pbuf_free(transmission_pbuf);
 }

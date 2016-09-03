@@ -30,7 +30,7 @@ extern struct ip_addr unity_IP;
 #define UNITY_RX_BROADCAST		0x01		// Initial broadcast packet used to establish connection
 #define UNITY_TX_SETUP_INT		0x04		// Setup integer variable GUI element
 #define UNITY_RX_SET_INT		0x05		// Set the value of an "int" type variable
-
+#define UNITY_TX_UPDATE_INT		0x06		// Send Unity the current value of all registered "int" variables (for GUI update)
 
 // Network parameters
 #define UNITY_NETWORK_PORT		55555
@@ -51,8 +51,10 @@ void unity_setup ();		// triggers the execution of the MCUnity setup operations
 
 // GUI Setup operations
 
-int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_t flags);
+int unity_setup_int (int* variable, const char* name, int min, int max, uint32_t flags);
 
 // GUI Update Functions
+
+void unity_update_int (int offset, int count);
 
 #endif /* LIBRARIES_UNITY_UNITY_H_ */
