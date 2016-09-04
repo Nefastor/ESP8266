@@ -18,7 +18,8 @@ void (*setup_operations)();		// Pointer to a firmware-specific function containi
 int* unity_variables_int[UNITY_MAX_VARIABLES];		// pointers to the variables shared with the Unity front-end
 int	 unity_variables_int_occupancy = 0;				// index of the first available slot in the array above
 
-
+void (*unity_variables_function[UNITY_MAX_VARIABLES])();	// pointers to firmware functions the user may want to trigger from the GUI
+int	 unity_variables_function_occupancy = 0;				// index of the first available slot in the array above
 
 // Utility functions for accessing packet data like a FIFO
 // The idea is to cast the payload as a byte array
@@ -111,6 +112,34 @@ void fifo_push_string (char* datastring)
  *
  */
 
+int unity_setup_function (void (*func)(), const char* name)
+{
+	if (unity_variables_function_occupancy == UNITY_MAX_VARIABLES) return -3; // too many variables
+
+	// store a pointer to the function
+	unity_variables_function[unity_variables_function_occupancy] = func;
+
+	// build packet:
+	struct pbuf *transmission_pbuf;
+	// compute packet payload length and allocate
+	int tx_length = strlen(name) + 1 + 1;	// see below for detail of pushes
+	transmission_pbuf = pbuf_alloc(PBUF_TRANSPORT,tx_length,PBUF_RAM);
+	// initialize payload FIFO operations
+	payload = (uint8_t*) transmission_pbuf->payload;
+	fifo_start ();		// initialize payload FIFO mode
+	// push the data
+	fifo_push_byte (UNITY_TX_SETUP_FUNCTION);	// Command byte
+	fifo_push_byte ((uint8_t) unity_variables_function_occupancy);		// Function's index / unique ID
+	fifo_push_string ((char*) name);	// function name, to be shown in the GUI
+
+	// send that packet !
+	udp_sendto(unity_pcb, transmission_pbuf, &unity_IP, UNITY_NETWORK_PORT);
+	pbuf_free(transmission_pbuf);
+
+	// update occupancy and return the index for the function that has just been added
+	return unity_variables_function_occupancy++;
+}
+
 int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_t flags)
 {
 	// this test can be omitted if proper design methodology is applied
@@ -131,7 +160,7 @@ int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_
 	//memcpy (transmission_pbuf->payload, name, name_len);	// start with the name
 	// not sure how to add the index, min and max, and "look" fields (those are int's)
 
-	// new way of building packets:
+	// build packet:
 	struct pbuf *transmission_pbuf;
 	// compute packet payload length and allocate
 	int tx_length = strlen(name) + 1 + 1 + 4 + 4 + 4 + 4;	// see below for detail of pushes
@@ -153,7 +182,7 @@ int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_
 	pbuf_free(transmission_pbuf);
 
 	// update occupancy and return the index for the variable that has just been added
-	return unity_variables_int_occupancy++;		// CHECK that post incrementation will work with a return statement
+	return unity_variables_int_occupancy++;
 }
 
 
@@ -186,18 +215,21 @@ void unity_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip_ad
 				unity_mode = UNITY_MODE_SETUP;	// mode transition, only if necessary
 			// No need to send a reply : Unity will accept GUI setup packets from an ESP as a connection handshake
 			break;
+		case UNITY_RX_FORCE_SETUP:	// trigger a call to the MCUnity custom setup function
+			unity_variables_int_occupancy = 0;	// clear previously-registered variables of each supported type
+			unity_variables_function_occupancy = 0;
+			setup_operations();		// call the custom setup function that was registered by the firmware
+			break;
+		case UNITY_RX_CALL_FUNCTION:	// call a firmware function
+			unity_variables_function[fifo_pop_byte()]();	// pop function index from incoming packet and use it to call the correct function pointer
+			break;
 		case UNITY_RX_SET_INT:		// set "int" type variable
-			// Next four bytes are the value
-			// get the pointer to the right variable and write it
 			buf8 = fifo_pop_byte(); // payload byte 2 is the variable's index
-			buf32 = fifo_pop_byte() << 8;  // payload byte 3 is the value's MSB
-			buf32 = (buf32 | fifo_pop_byte()) << 8;
-			buf32 = (buf32 | fifo_pop_byte()) << 8;
-			buf32 |= fifo_pop_byte() << 8; // payload byte 6 is the value's LSB
+			buf32 = fifo_pop_int();		// pop its new value
 			*unity_variables_int[buf8] = (int) buf32;
-			// alternate method, could be more efficient here :
-			//buf32 = (payload[2] << 24) | (payload[3] << 16) | (payload[4] << 8) | payload[5];
-			//*unity_variables_int[payload[1]] = (int) buf32;	// will that translate the sign properly ?
+			break;
+		case UNITY_RX_REQUEST_INT:	// application requests update of "int" variables
+			unity_update_int (0, 0);	// send the value of all "int" variables
 			break;
 		default:	// unsupported packet type
 			break;	// nothing to do : we're going straight to pubf deallocation and return

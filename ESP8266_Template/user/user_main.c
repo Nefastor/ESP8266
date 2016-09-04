@@ -38,6 +38,13 @@ int	exposed_variable = 0x12345678;
 int adc;
 int test = -120;
 
+// function designed to called from the GUI
+void increment_counter ()
+{
+	test++;
+}
+
+
 // Setup Unity GUI : centralize in a function that can be passed to MCUnity
 void MCUnity_setup_function ()
 {
@@ -45,6 +52,8 @@ void MCUnity_setup_function ()
 	unity_setup_int (&exposed_variable, "exposed_variable", 0, 1000, 0xA5);
 	unity_setup_int (&adc, "ADC sample", 0, 1023, 0xA3);
 	unity_setup_int (&test, "Negative value test", -300, 300, -2);
+	// Setup firmware functions so that they can be called from the Unity application
+	unity_setup_function (increment_counter, "Increment");
 }
 
 // Establish connection to Unity application
@@ -70,10 +79,29 @@ void task_gui_1(void *pvParameters)
 	sprintf (ip_addr,"%i.%i.%i.%i",d,c,b,a);	// reverse byte order
 	drawString (ip_addr,0,0,4);				// shows the host IP
 
+	// run-time display loop
+	while (1)
+	{
+		//sprintf (ip_addr,"%i       ", exposed_variable);
+		//drawString (ip_addr,0,30,4);
+		int col;
+
+		col = drawNumber (exposed_variable, 0, 30, 4);
+		drawString ("             ", col, 30, 4);
+
+		col = drawNumber (adc, 0, 60, 4);
+		drawString ("             ", col, 60, 4);
+
+		col = drawNumber (test, 0, 90, 4);
+		drawString ("             ", col, 90, 4);
+
+		vTaskDelay (10);		// 10 Hz display refresh rate
+	}
+
 
 	// task ends.
-	while (1)
-		vTaskDelay (100);
+//	while (1)
+//		vTaskDelay (100);
 
 }
 
@@ -85,17 +113,19 @@ void task_adc(void *pvParameters)
 		adc = system_adc_read();
 
 		// variable has been modified: update the remote GUI
-		unity_update_int (1, 1);	// restrict update to adc variable
+
+		// unity_update_int (1, 1);	// restrict update to adc variable
 
 		// unity_update_int (0, 3);	// send all variables (explicit)
-		// unity_update_int (0, 0); // send all variables (implicit)
+		unity_update_int (0, 0); // send all variables (implicit)
 
 		// unity_update_int (1, 2); // send "adc" and the next variable
 
 
-		vTaskDelay(150);
+		vTaskDelay(350);
 	}
 }
+
 
 
 
