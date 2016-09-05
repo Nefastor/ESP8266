@@ -28,40 +28,34 @@
 #include <stdio.h>				// For sprintf
 
 #include "credentials.h"		// WiFi network credentials (WIFI_SSID and WIFI_PASS)
-#include "unity.h"
+#include "unity.h"				// MCUnity library
+
+// Isolate as much MCUnity GUI code as possible
+#include "GUI_code.h"
+
+// GPIO Constants, see pin_mux_register.h (SDK) included through esp_common.h
+#define LED_GPIO 		2		// ESP8266 GPIO pin number, NOT module D pin number
+#define LED_GPIO_MUX	PERIPHS_IO_MUX_GPIO2_U
+#define LED_GPIO_FUNC 	FUNC_GPIO2
 
 // extern globals for debugging unity.c
 struct ip_addr unity_IP;
 
-// global variables I want to expose on the Unity front-end
-int	exposed_variable = 0x12345678;
-int adc;
-int test = -120;
 
-// example of function designed to be called from the GUI
-void increment_counter ()
-{
-	test++;
-}
-
-// example of GUI flags definitions, centralized for clarity
-// each macro defines a GUI element's position (X, Y), size (W, H), two colors and a reserved byte
-// position and dimension are expressed in 1/16th of a display's dimensions.
-#define	GUI1	GUI_FLAGS(0,0,4,3,0,0,0)
-#define	GUI2	GUI_FLAGS(4,0,4,3,0,0,0)
-#define	GUI3	GUI_FLAGS(0,3,4,3,0,0,0)
-#define	GUI4	GUI_FLAGS(4,3,4,3,0,0,0)
 
 
 // Setup Unity GUI : centralize in a function that can be passed to MCUnity
 void MCUnity_setup_function ()
 {
 	// Application (firmware) specific GUI setup operations:
-	unity_setup_int (&exposed_variable,	"exposed_variable", 0, 1000,	GUI1); // GUI_FLAGS(0,0,4,3,0,0,0));
+	unity_setup_int (&exposed_variable,	"exposed global", 0, 1000,	GUI1); // GUI_FLAGS(0,0,4,3,0,0,0));
 	unity_setup_int (&adc,				"ADC sample", 0, 1023,			GUI2); // GUI_FLAGS(4,0,4,3,0,0,0));
-	unity_setup_int (&test, "Negative value test", -300, 300,			GUI3); // GUI_FLAGS(0,3,4,3,0,0,0));
+	unity_setup_int (&test, "Test Value", -300, 300,			GUI3); // GUI_FLAGS(0,3,4,3,0,0,0));
 	// Setup firmware functions so that they can be called from the Unity application
 	unity_setup_function (increment_counter, "Increment",				GUI4); // GUI_FLAGS(4,3,4,3,0,0,0));
+	// Setup "int" variable and function call button for the LED
+	unity_setup_int (&led,	"LED State", 0, 1,	GUI5);
+	unity_setup_function (toggle_led, "Toggle LED", GUI6);
 }
 
 // Establish connection to Unity application
@@ -130,7 +124,7 @@ void task_adc(void *pvParameters)
 		// unity_update_int (1, 2); // send "adc" and the next variable
 
 
-		vTaskDelay(350);
+		vTaskDelay(50);
 	}
 }
 
@@ -162,6 +156,9 @@ void user_init(void)
 	setRotation(0);	// 0-2 : portrait. 1-3 : landscape
 	//fillScreen(0xFFFF);	// make the screen white
 	fillScreen(0x0000);		// make the screen black
+
+	// Multiplex the LED pin as GPIO
+	PIN_FUNC_SELECT(LED_GPIO_MUX, LED_GPIO_FUNC);
 
 	// Let's try something simple : printing a string to the LCD
 	// drawString("Test",0,0,2);	// Font 2 is a small font
