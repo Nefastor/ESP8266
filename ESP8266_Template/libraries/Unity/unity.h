@@ -39,6 +39,17 @@ extern struct ip_addr unity_IP;
 // Network parameters
 #define UNITY_NETWORK_PORT		55555
 
+////////////////// MACROS ///////////////////////////////////////
+
+#define GUI_FLAGS(X, Y, W, H, C1, C2, R) ( \
+	((X & 0xF) << 28) | \
+	((Y & 0xF) << 24) | \
+	((W & 0xF) << 20) | \
+	((H & 0xF) << 16) | \
+	((C1 & 0xF) << 12) | \
+	((C2 & 0xF) << 8) | \
+	(R & 0xFF) )
+
 /////////////////////////// API /////////////////////////////////
 
 // Overall Init Function
@@ -55,7 +66,7 @@ void unity_setup ();		// triggers the execution of the MCUnity setup operations
 
 // GUI Setup operations
 
-int unity_setup_function (void (*func)(), const char* name);
+int unity_setup_function (void (*func)(), const char* name, uint32_t flags);
 int unity_setup_int (int* variable, const char* name, int min, int max, uint32_t flags);
 
 // GUI Update Functions

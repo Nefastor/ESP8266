@@ -38,22 +38,30 @@ int	exposed_variable = 0x12345678;
 int adc;
 int test = -120;
 
-// function designed to called from the GUI
+// example of function designed to be called from the GUI
 void increment_counter ()
 {
 	test++;
 }
+
+// example of GUI flags definitions, centralized for clarity
+// each macro defines a GUI element's position (X, Y), size (W, H), two colors and a reserved byte
+// position and dimension are expressed in 1/16th of a display's dimensions.
+#define	GUI1	GUI_FLAGS(0,0,4,3,0,0,0)
+#define	GUI2	GUI_FLAGS(4,0,4,3,0,0,0)
+#define	GUI3	GUI_FLAGS(0,3,4,3,0,0,0)
+#define	GUI4	GUI_FLAGS(4,3,4,3,0,0,0)
 
 
 // Setup Unity GUI : centralize in a function that can be passed to MCUnity
 void MCUnity_setup_function ()
 {
 	// Application (firmware) specific GUI setup operations:
-	unity_setup_int (&exposed_variable, "exposed_variable", 0, 1000, 0xA5);
-	unity_setup_int (&adc, "ADC sample", 0, 1023, 0xA3);
-	unity_setup_int (&test, "Negative value test", -300, 300, -2);
+	unity_setup_int (&exposed_variable,	"exposed_variable", 0, 1000,	GUI1); // GUI_FLAGS(0,0,4,3,0,0,0));
+	unity_setup_int (&adc,				"ADC sample", 0, 1023,			GUI2); // GUI_FLAGS(4,0,4,3,0,0,0));
+	unity_setup_int (&test, "Negative value test", -300, 300,			GUI3); // GUI_FLAGS(0,3,4,3,0,0,0));
 	// Setup firmware functions so that they can be called from the Unity application
-	unity_setup_function (increment_counter, "Increment");
+	unity_setup_function (increment_counter, "Increment",				GUI4); // GUI_FLAGS(4,3,4,3,0,0,0));
 }
 
 // Establish connection to Unity application

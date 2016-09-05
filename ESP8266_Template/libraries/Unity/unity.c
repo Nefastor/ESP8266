@@ -112,7 +112,7 @@ void fifo_push_string (char* datastring)
  *
  */
 
-int unity_setup_function (void (*func)(), const char* name)
+int unity_setup_function (void (*func)(), const char* name, uint32_t flags)
 {
 	if (unity_variables_function_occupancy == UNITY_MAX_VARIABLES) return -3; // too many variables
 
@@ -122,7 +122,7 @@ int unity_setup_function (void (*func)(), const char* name)
 	// build packet:
 	struct pbuf *transmission_pbuf;
 	// compute packet payload length and allocate
-	int tx_length = strlen(name) + 1 + 1;	// see below for detail of pushes
+	int tx_length = strlen(name) + 1 + 1 + 4;	// see below for detail of pushes
 	transmission_pbuf = pbuf_alloc(PBUF_TRANSPORT,tx_length,PBUF_RAM);
 	// initialize payload FIFO operations
 	payload = (uint8_t*) transmission_pbuf->payload;
@@ -130,6 +130,7 @@ int unity_setup_function (void (*func)(), const char* name)
 	// push the data
 	fifo_push_byte (UNITY_TX_SETUP_FUNCTION);	// Command byte
 	fifo_push_byte ((uint8_t) unity_variables_function_occupancy);		// Function's index / unique ID
+	fifo_push_int ((int) flags);
 	fifo_push_string ((char*) name);	// function name, to be shown in the GUI
 
 	// send that packet !
