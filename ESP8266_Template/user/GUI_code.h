@@ -16,7 +16,7 @@
 int	exposed_variable = 0x12345678;
 int adc;
 int test = -120;
-int led = 0;
+int led = 1;
 
 
 // example of functions designed to be called from the GUI
@@ -60,6 +60,8 @@ void toggle_led ()
 #define	GUI4	GUI_FLAGS(6,0,2,2,0,0,0)
 #define	GUI5	GUI_FLAGS(8,0,2,2,0,0,0)
 #define	GUI6	GUI_FLAGS(10,0,2,2,0,0,0)
+#define	GUI7	GUI_FLAGS(12,0,2,2,0,0,0)
+#define	GUI8	GUI_FLAGS(14,0,2,2,0,0,0)
 
 
 

@@ -23,12 +23,12 @@
 //#include "lwip/netdb.h"
 #include "lwip/udp.h"
 
-#include "ILI9341.h"
-
 #include <stdio.h>				// For sprintf
 
 #include "credentials.h"		// WiFi network credentials (WIFI_SSID and WIFI_PASS)
 #include "unity.h"				// MCUnity library
+
+#include "gpio.h"
 
 // Isolate as much MCUnity GUI code as possible
 #include "GUI_code.h"
@@ -38,74 +38,44 @@
 #define LED_GPIO_MUX	PERIPHS_IO_MUX_GPIO2_U
 #define LED_GPIO_FUNC 	FUNC_GPIO2
 
-// extern globals for debugging unity.c
-struct ip_addr unity_IP;
+// NEW GUI SETUP PARADIGM : use a FreeRTOS task
+// Make it into a "service" that can be triggered by the MCUnity packet parser
+/////////////// WORK IN PROGRESS ////////////////////////////
 
+#define SETUP_DELAY	1	// setup delay in FreeRTOS ticks (5 ms @ 160 MHz)
 
-
-
-// Setup Unity GUI : centralize in a function that can be passed to MCUnity
-void MCUnity_setup_function ()
+void task_gui_setup(void *pvParameters)
 {
-	// Application (firmware) specific GUI setup operations:
-	unity_setup_int (&exposed_variable,	"exposed global", 0, 1000,	GUI1); // GUI_FLAGS(0,0,4,3,0,0,0));
-	unity_setup_int (&adc,				"ADC sample", 0, 1023,			GUI2); // GUI_FLAGS(4,0,4,3,0,0,0));
-	unity_setup_int (&test, "Test Value", -300, 300,			GUI3); // GUI_FLAGS(0,3,4,3,0,0,0));
-	// Setup firmware functions so that they can be called from the Unity application
-	unity_setup_function (increment_counter, "Increment",				GUI4); // GUI_FLAGS(4,3,4,3,0,0,0));
-	// Setup "int" variable and function call button for the LED
-	unity_setup_int (&led,	"LED State", 0, 1,	GUI5);
-	unity_setup_function (toggle_led, "Toggle LED", GUI6);
-}
-
-// Establish connection to Unity application
-void task_gui_1(void *pvParameters)
-{
-	drawString ("Waiting...",0,0,4);
-
-	// wait for connection to be established
-	// wait until reception and processing of a broadcast packet from Unity
-	// TO DO - FIND A MORE ELEGANT WAY TO DO THIS
-	while (unity_not_ready())
-		vTaskDelay (1);	// delay is necessary, let other tasks work while waiting
-
-	// at this point, it's possible (and time) to setup the GUI
-	unity_setup ();		// equivalent to calling MCUnity_setup_function() directly
-
-
-	char ip_addr[50];
-	int a = unity_IP.addr >> 24;
-	int b = (unity_IP.addr >> 16) & 0xFF;
-	int c = (unity_IP.addr >> 8) & 0xFF;
-	int d = unity_IP.addr & 0xFF;
-	sprintf (ip_addr,"%i.%i.%i.%i",d,c,b,a);	// reverse byte order
-	drawString (ip_addr,0,0,4);				// shows the host IP
-
-	// run-time display loop
 	while (1)
 	{
-		//sprintf (ip_addr,"%i       ", exposed_variable);
-		//drawString (ip_addr,0,30,4);
-		int col;
+		vTaskSuspend (NULL);		// start suspended
 
-		col = drawNumber (exposed_variable, 0, 30, 4);
-		drawString ("             ", col, 30, 4);
+		while (unity_not_ready())
+			vTaskDelay (1);	// delay is necessary, let other tasks work while waiting
+		// note : longer delay doesn't help with initial setup glitch
 
-		col = drawNumber (adc, 0, 60, 4);
-		drawString ("             ", col, 60, 4);
+		// Application (firmware) specific GUI setup operations:
+		unity_setup_int (&exposed_variable,	"A variable", 0, 1000,	GUI1); // GUI_FLAGS(0,0,4,3,0,0,0));
+		unity_setup_int (&adc,				"ADC sample", 0, 1023,			GUI2); // GUI_FLAGS(4,0,4,3,0,0,0));
+		unity_setup_int (&test, "Test Value", -300, 300,			GUI3); // GUI_FLAGS(0,3,4,3,0,0,0));
 
-		col = drawNumber (test, 0, 90, 4);
-		drawString ("             ", col, 90, 4);
+		// Setup firmware functions so that they can be called from the Unity application
+		unity_setup_function (increment_counter, "Increment",				GUI4); // GUI_FLAGS(4,3,4,3,0,0,0));
 
-		vTaskDelay (10);		// 10 Hz display refresh rate
+		// Setup "int" variable and function call button for the LED
+		unity_setup_int (&led,	"LED State", 0, 1,	GUI5);
+		unity_setup_function (toggle_led, "Toggle LED", GUI6);
+
+		// Let's add some more !
+//		unity_setup_function (toggle_led, "Toggle LED 2", GUI7);
+//		unity_setup_function (toggle_led, "Toggle LED 3", GUI8);
+
+		// After setting up the GUI, transition to "update" mode
+		unity_setup_rtos_complete ();
 	}
 
-
-	// task ends.
-//	while (1)
-//		vTaskDelay (100);
-
 }
+
 
 // sample the ADC periodically
 void task_adc(void *pvParameters)
@@ -151,28 +121,15 @@ void user_init(void)
 	wifi_station_set_config_current(config);
 	free(config);
 
-	// Initialize TFT (also takes care of HSPI)
-	begin();
-	setRotation(0);	// 0-2 : portrait. 1-3 : landscape
-	//fillScreen(0xFFFF);	// make the screen white
-	fillScreen(0x0000);		// make the screen black
-
 	// Multiplex the LED pin as GPIO
 	PIN_FUNC_SELECT(LED_GPIO_MUX, LED_GPIO_FUNC);
 
-	// Let's try something simple : printing a string to the LCD
-	// drawString("Test",0,0,2);	// Font 2 is a small font
-	// drawString("Test",0,16,4);	// Font 4 is a medium font
-	// drawString("Test",0,60,6);	// Font 6 is a large font
-	// There's also a font 7 (7-segment display) which only works for numbers :
-	// drawNumber(1234,0,200,7);
-
-	// MCUnity needs to know which firmware function will take care of GUI setup :
-	unity_init (MCUnity_setup_function);	// initialize with a pointer to a setup function
-
+	xTaskHandle setup_tsk;
     // FreeRTOS task creation : function, name, stack depth, parameter to function, priority, handle
     // for more details read : http://www.freertos.org/a00125.html
-    xTaskCreate(task_gui_1, "tsk1", 256, NULL, 2, NULL);
+    xTaskCreate(task_gui_setup, "tsk1", 256, NULL, 2, &setup_tsk);
+    unity_init_rtos (setup_tsk);
+
     xTaskCreate(task_adc, "tsk3", 256, NULL, 2, NULL);
 }
 

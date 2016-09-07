@@ -3,6 +3,12 @@
 #include "unity.h"
 #include <string.h>	// C string functions
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+// prototypes for internal functions
+void unity_setup_rtos ();
+
 // MCUnity state (mode)
 int unity_mode = UNITY_MODE_INIT;					// three modes : init / setup / update
 
@@ -13,7 +19,7 @@ struct udp_pcb *unity_pcb;		// Protocol Control Block
 
 // GUI Setup Storage
 
-void (*setup_operations)();		// Pointer to a firmware-specific function containing all calls to MCUnity setup operations
+xTaskHandle setup_task;			// Handle to a user-created GUI setup FreeRTOS task
 
 int* unity_variables_int[UNITY_MAX_VARIABLES];		// pointers to the variables shared with the Unity front-end
 int	 unity_variables_int_occupancy = 0;				// index of the first available slot in the array above
@@ -114,10 +120,15 @@ void fifo_push_string (char* datastring)
 
 int unity_setup_function (void (*func)(), const char* name, uint32_t flags)
 {
+taskENTER_CRITICAL ();
+
+	if (unity_mode != UNITY_MODE_SETUP) return -2; // only usable in UNITY_MODE_SETUP
+
 	if (unity_variables_function_occupancy == UNITY_MAX_VARIABLES) return -3; // too many variables
 
 	// store a pointer to the function
 	unity_variables_function[unity_variables_function_occupancy] = func;
+
 
 	// build packet:
 	struct pbuf *transmission_pbuf;
@@ -134,8 +145,17 @@ int unity_setup_function (void (*func)(), const char* name, uint32_t flags)
 	fifo_push_string ((char*) name);	// function name, to be shown in the GUI
 
 	// send that packet !
-	udp_sendto(unity_pcb, transmission_pbuf, &unity_IP, UNITY_NETWORK_PORT);
+	while (1)
+	{
+		err_t e = udp_sendto(unity_pcb, transmission_pbuf, &unity_IP, UNITY_NETWORK_PORT);
+		if (e == ERR_OK) break;
+	}
+
+
 	pbuf_free(transmission_pbuf);
+taskEXIT_CRITICAL ();
+	// test
+	vTaskDelay (1);
 
 	// update occupancy and return the index for the function that has just been added
 	return unity_variables_function_occupancy++;
@@ -145,9 +165,8 @@ int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_
 {
 	// this test can be omitted if proper design methodology is applied
 	//if (unity_is_connected != UNITY_IS_CONNECTED) return -1;  // no connection to a host running the Unity app
-
-	// this test can be omitted if proper design methodology is applied
-	//if (unity_mode != UNITY_SETUP_MODE) return -2; // only usable in UNITY_SETUP_MODE
+taskENTER_CRITICAL ();
+	if (unity_mode != UNITY_MODE_SETUP) return -2; // only usable in UNITY_SETUP_MODE
 
 	// disabled for debugging only
 	if (unity_variables_int_occupancy == UNITY_MAX_VARIABLES) return -3; // too many variables
@@ -160,6 +179,7 @@ int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_
 
 	//memcpy (transmission_pbuf->payload, name, name_len);	// start with the name
 	// not sure how to add the index, min and max, and "look" fields (those are int's)
+
 
 	// build packet:
 	struct pbuf *transmission_pbuf;
@@ -179,8 +199,18 @@ int	 unity_setup_int (int* variable, const char* name, int min, int max, uint32_
 	fifo_push_string ((char*) name);// variable name, to be shown in the GUI
 
 	// send that packet !
-	udp_sendto(unity_pcb, transmission_pbuf, &unity_IP, UNITY_NETWORK_PORT);
+	while (1)
+	{
+		err_t e = udp_sendto(unity_pcb, transmission_pbuf, &unity_IP, UNITY_NETWORK_PORT);
+		if (e == ERR_OK) break;
+	}
+
+
 	pbuf_free(transmission_pbuf);
+taskEXIT_CRITICAL ();
+	// test
+	vTaskDelay (1);
+
 
 	// update occupancy and return the index for the variable that has just been added
 	return unity_variables_int_occupancy++;
@@ -212,14 +242,13 @@ void unity_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip_ad
 	{
 		case UNITY_RX_BROADCAST:	// update the IP address to the application
 			unity_IP = *addr;		// copy the IP address of the remote host running the Unity app
-			if (unity_mode == UNITY_MODE_INIT)
-				unity_mode = UNITY_MODE_SETUP;	// mode transition, only if necessary
+			if (unity_mode != UNITY_MODE_INIT)
+				break;
 			// No need to send a reply : Unity will accept GUI setup packets from an ESP as a connection handshake
-			break;
+			unity_setup_rtos();		// perform GUI setup
+			break;		// could dispense with that break and use the following call to "setup()"
 		case UNITY_RX_FORCE_SETUP:	// trigger a call to the MCUnity custom setup function
-			unity_variables_int_occupancy = 0;	// clear previously-registered variables of each supported type
-			unity_variables_function_occupancy = 0;
-			setup_operations();		// call the custom setup function that was registered by the firmware
+			unity_setup_rtos();
 			break;
 		case UNITY_RX_CALL_FUNCTION:	// call a firmware function
 			unity_variables_function[fifo_pop_byte()]();	// pop function index from incoming packet and use it to call the correct function pointer
@@ -242,33 +271,35 @@ void unity_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip_ad
 }
 
 
-// Unity interface initialization : this must be called ASAP following connection to the WiFi network
-
-void unity_init (void (*setup_func)())
+// Unity GUI initialization : this must be called ASAP following connection to the WiFi network
+void unity_init_rtos (xTaskHandle setup_tsk)
 {
+	if (unity_mode != UNITY_MODE_INIT) return;
+
 	// Setup UDP packet listener
 	unity_pcb = udp_new();		// allocate the PCB
 	udp_bind(unity_pcb, IP_ADDR_ANY, UNITY_NETWORK_PORT);
 	udp_recv(unity_pcb, unity_udp_recv, NULL);
 
 	// Save handle of setup task, in case Unity app requests a re-setup
-	setup_operations = setup_func;
+	setup_task = setup_tsk;
 }
 
-void unity_setup ()
+// Used internally by the library
+void unity_setup_rtos ()
 {
-	// TO DO - MCUnity STATE TRANSITIONS !!!
-	// Actually, the "setup" mode is now superfluous if all setup happens here...
-	// ... unless this function is interrupted by another task
 	unity_mode = UNITY_MODE_SETUP;
 
-	// TO DO - reset any MCUnity GUI state information on the firmware side
-	// (since the setup operations will otherwise duplicate it)
+	// Reset any MCUnity GUI state information on the firmware side
+	// (since the setup operations would otherwise duplicate it)
 	unity_variables_int_occupancy = 0;		// clear "int" variables storage
+	unity_variables_function_occupancy = 0;	// clear functions storage
 
-	// using a function pointer instead:
-	(*setup_operations)();		// call the firmware-specific GUI setup function
+	vTaskResume (setup_task);		// resume the firmware-specific GUI setup task
+}
 
+void unity_setup_rtos_complete ()
+{
 	// finally, transition MCUnity to "update" state
 	unity_mode = UNITY_MODE_UPDATE;
 }
@@ -290,8 +321,6 @@ int unity_not_ready ()
 
 void unity_update_int (int offset, int count)
 {
-	//if (unity_not_ready ()) return;		// always returns for some reason
-
 	if (unity_mode != UNITY_MODE_UPDATE) return;
 
 	struct pbuf *transmission_pbuf;		// start creating a packet

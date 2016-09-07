@@ -13,9 +13,6 @@
 #include "freertos/task.h"
 #include "lwip/udp.h"
 
-// extern globals for debugging
-extern struct ip_addr unity_IP;
-
 // GUI Setup Storage
 #define UNITY_MAX_VARIABLES		10		// max. 255 variables of each supported type
 
@@ -54,15 +51,16 @@ extern struct ip_addr unity_IP;
 
 // Overall Init Function
 
-void unity_init (void (*setup_func)());		// library and socket initialization
+//void unity_init (void (*setup_func)());		// library and socket initialization
+void unity_init_rtos (xTaskHandle setup_tsk);
 
 // Test if MCUnity network connection is established, following unity_init
 
 int unity_not_ready ();			// test repeatedly until it returns zero
 
-// Overall GUI Setup Function
+// Overall GUI Setup Functions
 
-void unity_setup ();		// triggers the execution of the MCUnity setup operations
+void unity_setup_rtos_complete (); // to be called only at the end of the user's setup task
 
 // GUI Setup operations
 
