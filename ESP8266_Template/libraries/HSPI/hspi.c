@@ -19,6 +19,8 @@
 	I will track down the source.
 */
 
+
+
 void hspi_init(void)
 {
 	hspi_enable_80Mhz;	// Use 80 MHz system clock as SCK
@@ -48,6 +50,8 @@ void hspi_init(void)
  * Clock predivider takes the 80 MHz system clock and divides it, feeding
  * the SCK clock generator. "cntdiv" defines the period of SCK in predivided
  * clock cycles.
+ *
+ * Note that cntdiv is actually coded on 6 bits, limiting its value to the range 1..64)
  */
 void hspi_clock(uint16 prediv, uint8 cntdiv)
 {
@@ -183,6 +187,32 @@ inline void hspi_init_gpio (void)
 }
 
 
+////////////////////////////////////////////////////////////////////////////////
+ //
+// Function Name: spi_mode
+//   Description: Configures SPI mode parameters for clock edge and clock polarity.
+//    Parameters: spi_no - SPI (0) or HSPI (1)
+//				  spi_cpha - (0) Data is valid on clock leading edge
+//				             (1) Data is valid on clock trailing edge
+//				  spi_cpol - (0) Clock is low when inactive
+//				             (1) Clock is high when inactive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void hspi_mode(uint8 spi_cpha,uint8 spi_cpol)
+{
+	if(spi_cpha)
+		CLEAR_PERI_REG_MASK(SPI_USER(1), SPI_CK_OUT_EDGE);
+	else
+		SET_PERI_REG_MASK(SPI_USER(1), SPI_CK_OUT_EDGE);
+
+	if (spi_cpol)
+		SET_PERI_REG_MASK(SPI_PIN(1), SPI_IDLE_EDGE);
+	else
+		CLEAR_PERI_REG_MASK(SPI_PIN(1), SPI_IDLE_EDGE);
+}
+
+
 /*
  * Nefastor : the following is a fairly heavy function but one that is universal
  * (it should cover all the possible types of SPI transaction).
@@ -293,7 +323,8 @@ uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint3
 			return READ_PERI_REG(SPI_W0(HSPI)); //Read in the same way as DOUT is sent. Note existing contents of SPI_W0 remain unless overwritten!
 		}
 
-		return 0; //something went wrong
+		// return 0; //something went wrong
+		return 0xDEADBEEF; //something went wrong
 	}
 
 	return 1; //Transaction completed successfully

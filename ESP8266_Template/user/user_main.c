@@ -23,12 +23,12 @@
 //#include "lwip/netdb.h"
 #include "lwip/udp.h"
 
-#include <stdio.h>				// For sprintf
+//#include <stdio.h>				// For sprintf
 
 #include "credentials.h"		// WiFi network credentials (WIFI_SSID and WIFI_PASS)
 #include "unity.h"				// MCUnity library
-
-#include "gpio.h"
+#include "mpu9250.h"
+#include "gpio.h"				// To operate the LED
 
 // GPIO Constants, see pin_mux_register.h (SDK) included through esp_common.h
 #define LED_GPIO 		2		// ESP8266 GPIO pin number, NOT module D pin number
@@ -36,22 +36,40 @@
 #define LED_GPIO_FUNC 	FUNC_GPIO2
 
 // MCUnity setup, phase 1 : declare the global variables MCUnity will let you interact with
-int	exposed_variable = 0x12345678;
+//int	exposed_variable = 0x12345678;
 int adc;
-int test = -120;
+//int test = -120;
 int led = 1;
+// SPI stuff
+int predivider = 4;		// clocking defaults for SPI (appear to work)
+int sck_length = 40;
+int sck_up = 8;
+int sck_down = 32;
+int spi_address = 117;	// default to MPU9250 "who am I" register address (7 bits)
+int spi_data_in = 0;	// whatever comes out of the MPU9250
+
 
 // MCUnity setup, phase 2 : add in functions that can be triggered from GUI buttons
-void increment_a_variable ()
-{
-	test++;
-}
+// Special SPI GUI
 
 void toggle_led ()
 {
 	led = 1 - led;
 	GPIO_OUTPUT_SET (LED_GPIO, led);
 }
+
+void spi_transaction ()
+{
+	// set the clock
+	mpu9250_hspi_clock_upgrade(predivider, sck_up, sck_down);
+	//hspi_clock(predivider, sck_up + sck_down);
+	// give it a few microseconds to settle
+	os_delay_us (100);
+	// perform the transaction
+	spi_data_in = (int) hspi_transaction(0,0,0,0,8,spi_address | 0x80,8,0); // read / dummy
+	// update the remote GUI (nothing : currently done by a FreeRTOS task)
+}
+
 
 // MCUnity setup, phase 3 : define GUI tiles appearance flags
 
@@ -82,16 +100,18 @@ void task_gui_setup(void *pvParameters)
 		////////// project-specific GUI setup code starts here ////////////
 
 		// Application (firmware) specific GUI setup operations:
-		unity_setup_int (&exposed_variable,	"A variable", 0, 1000,	TILE_1); // GUI_FLAGS(0,0,4,3,0,0,0));
-		unity_setup_int (&adc,				"ADC sample", 0, 1023,			TILE_2); // GUI_FLAGS(4,0,4,3,0,0,0));
-		unity_setup_int (&test, "Test Value", -300, 300,			TILE_3); // GUI_FLAGS(0,3,4,3,0,0,0));
+		unity_setup_int (&predivider,	"Prediv", 0, 1000,	TILE_1); // GUI_FLAGS(0,0,4,3,0,0,0));
+		unity_setup_int (&sck_up,				"SCK up", 0, 63,			TILE_2); // GUI_FLAGS(4,0,4,3,0,0,0));
+		unity_setup_int (&sck_down,				"SCK down", 0, 63,			TILE_3); // GUI_FLAGS(4,0,4,3,0,0,0));
+		unity_setup_int (&spi_address, "Register", -300, 300,			TILE_4); // GUI_FLAGS(0,3,4,3,0,0,0));
+		unity_setup_int (&spi_data_in,	"Value", 0, 1,	TILE_5);
 
 		// Setup firmware functions so that they can be called from the Unity application
-		unity_setup_function (increment_a_variable, "Increment",				TILE_4); // GUI_FLAGS(4,3,4,3,0,0,0));
+		unity_setup_function (spi_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
 
 		// Setup "int" variable and function call button for the LED
-		unity_setup_int (&led,	"LED State", 0, 1,	TILE_5);
-		unity_setup_function (toggle_led, "Toggle LED", TILE_6);
+
+		unity_setup_function (toggle_led, "Toggle LED", TILE_7);
 
 		// Let's add some more !
 //		unity_setup_function (toggle_led, "Toggle LED 2", TILE_7);
@@ -136,6 +156,8 @@ void user_init(void)
 {
 	// Go to 160 MHz
 	system_update_cpu_freq(160);
+	// seems to have no impact on my current issue with SPI
+	// And that's a problem, I think. Unless the IMU really doesn't care about the doubling of SCK
 
 	// Connect to WiFi network
 	wifi_set_opmode(STATION_MODE);	// need to set opmode before you set config
@@ -147,6 +169,58 @@ void user_init(void)
 
 	// Multiplex the LED pin as GPIO
 	PIN_FUNC_SELECT(LED_GPIO_MUX, LED_GPIO_FUNC);
+
+	// MEMS IMU init
+	mpu9250_init();
+
+	// Disable I²C interface
+//	hspi_transaction(0,0,8,106,8, 0x10   ,0,0);
+
+
+/*
+	// MEMS test
+	uint8 rv = mpu9250_read(117 + 0x80);
+	if ((rv == 0x71) || (rv == 0x68))
+		GPIO_OUTPUT_SET (LED_GPIO, 0);
+	else
+		GPIO_OUTPUT_SET (LED_GPIO, 1);
+
+	// The previous test shows that I read neither 71 nor 68
+	exposed_variable = rv;
+	// shows that I read 148, which is 0x94. This is consistent across several resets.
+*/
+	// coded as 0 bit command, 8 bit address, 0 bit out, 8 bit in, 8 dummy bits
+	//exposed_variable = (int) hspi_transaction(0,0,8,117 | 0x80,0,0,8,8);
+
+	// coded as 1 bit command, 7 bit address, 0 bit out, 8 bit in, 8 dummy bits
+	// fails (reads zero)
+	// exposed_variable = (int) hspi_transaction(1,1,7,117,0,0,8,8);
+
+	// reads 148 almost all the time
+	// exposed_variable = (int) hspi_transaction(0,0,0,0,8,117 | 0x80,8,8);
+
+	// attempt 32-bit read
+	//exposed_variable = (int) hspi_transaction(0,0,0,0,8,115 | 0x80,32,32);
+
+	// attempt to reset and wake up the device. No effect.
+	/*
+	os_delay_us (10);
+	hspi_transaction(0,0,0,0,16,0x6B80,0,0);
+	os_delay_us (10);
+	hspi_transaction(0,0,0,0,16,0x6B01,0,0);
+	os_delay_us (10);
+	*/
+
+	// attempt to read another register
+	//exposed_variable = (int) hspi_transaction(0,0,0,0,8,117 | 0x80,8,8);
+
+	// replace dummy cycles with a null write
+	// 117 | 0x80 is 245 / 0xF5.
+	// exposed_variable = (int) hspi_transaction(0,0,0,0,16,0xF500,8,0);
+	// this reads 211, it seems.
+
+	// Attempt a 24-bit read
+	//exposed_variable = (int) hspi_transaction(0,0,0,0,32,0xF5000000,24,0);
 
 	// MCUnity initialization : tell it which task will setup the GUI
 	xTaskHandle setup_tsk;

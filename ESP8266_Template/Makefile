@@ -24,6 +24,7 @@ ESPTOOL ?= $(SDK_TOOLS)/esptool.exe
 # COM port
 ESPPORT ?= COM5
 # Baud rate
+#BAUD ?= 256000
 BAUD ?= 912600
 
 # SPI_SPEED = 40, 26, 20, 80
@@ -122,7 +123,7 @@ endif
 TARGET		= app
 
 # which modules (subdirectories) of the project to include in compiling
-MODULES	= user libraries/GPIO libraries/HSPI libraries/Unity
+MODULES	= user libraries/GPIO libraries/HSPI libraries/Unity libraries/MPU9250
 #HSPI ILI9341
 EXTRA_INCDIR = include
 

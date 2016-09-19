@@ -23,7 +23,8 @@
 #define SPI_REGISTER_H_2_INCLUDED
 
 //#define SPI_FLASH_CMD(i)                            (REG_SPI_BASE(i)  + 0x0)
-// TO DO : for consistency : eliminate _FLASH from the following definitions :
+// It appears that this register has Flash-related fields that aren't mentionned in
+// Espressif's documentation.
 #define SPI_FLASH_READ (BIT(31))
 #define SPI_FLASH_WREN (BIT(30))
 #define SPI_FLASH_WRDI (BIT(29))
@@ -171,6 +172,7 @@
 //#define SPI_FLASH_USER3(i)                          (REG_SPI_BASE(i)  + 0x28)
 
 //#define SPI_FLASH_PIN(i)                            (REG_SPI_BASE(i)  + 0x2C)
+#define SPI_IDLE_EDGE (BIT(29))
 
 /*#define SPI_FLASH_SLAVE(i)                          (REG_SPI_BASE(i)  + 0x30)
 #define SPI_SYNC_RESET (BIT(31))
