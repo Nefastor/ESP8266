@@ -2,6 +2,62 @@
 #include "hspi.h"
 #include "gpio.h"	// to control the discrete signals.
 // #include "esp_common.h"
+#include "i2c.h"
+
+// Let's try to use a more comprehensive IO setup routine:
+GPIO_ConfigTypeDef hspi_io[4];
+
+//////////////////////////// I2C ACCESS ///////////////////////////////////////////////////////////
+
+void mpu9250_i2c_init ()
+{
+	// force the address LSB to zero (AD0)
+	PIN_FUNC_SELECT(AD0_MUX, AD0_FUNC);
+	GPIO_OUTPUT_SET(AD0_PIN,0);
+
+	// force nCS (through GPIO15) to "1"
+	PIN_FUNC_SELECT(nCS_MUX, nCS_FUNC);
+	GPIO_OUTPUT_SET(nCS_PIN,1);
+
+	// force FSYNC (through GPIO15) to "0"
+	PIN_FUNC_SELECT(FSYNC_MUX, FSYNC_FUNC);
+	GPIO_OUTPUT_SET(FSYNC_PIN,0);
+/*
+	// SDA
+	hspi_io[1].GPIO_Pin = GPIO_Pin_13;
+	hspi_io[1].GPIO_IntrType = GPIO_PIN_INTR_DISABLE;
+	hspi_io[1].GPIO_Pullup = 0;		// 0 to disable, 1 to enable
+	hspi_io[1].GPIO_Mode = GPIO_Mode_Out_OD;
+
+	// SCL
+	hspi_io[2].GPIO_Pin = GPIO_Pin_14;
+	hspi_io[2].GPIO_IntrType = GPIO_PIN_INTR_DISABLE;
+	hspi_io[2].GPIO_Pullup = 0;		// 0 to disable, 1 to enable
+	hspi_io[2].GPIO_Mode = GPIO_Mode_Out_OD;
+*/
+
+
+	// initialize bit-banging driver
+	i2c_init ();
+
+	// moar config
+	gpio_config(&hspi_io[1]);
+	gpio_config(&hspi_io[2]);
+}
+
+
+
+
+
+
+
+
+
+
+/////////////////////////// SPI ACCESS /////////////////////////////////////////////////////////////
+
+
+
 
 // modified version of hspi clock setup
 void mpu9250_hspi_clock_old(uint16 prediv, uint8 cntdiv)
@@ -51,8 +107,7 @@ void mpu9250_hspi_clock_upgrade(uint16 prediv, uint8 sck_up, uint8 sck_dn)
 	// it appears the "high" level must always be set to a length of zero, otherwise there's no SCK output...
 }
 
-// Let's try to use a more comprehensive IO setup routine:
-GPIO_ConfigTypeDef hspi_io[4];
+
 
 // This replaces the HSPI library's init function
 void mpu9250_init()
@@ -63,7 +118,7 @@ void mpu9250_init()
 
 	hspi_enable_80Mhz;	// Use 80 MHz system clock as SCK
 
-	// hspi_init_gpio();
+
 
 
 	// try different drive modes / pull-ups
@@ -98,13 +153,14 @@ void mpu9250_init()
 	gpio_config(&hspi_io[3]);
 	*/
 
+	// hspi_init_gpio(); copied contents in this function
 	// Set pin muxing for HSPI - known good
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); //GPIO12 is HSPI MISO pin (Master Data In)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); //GPIO13 is HSPI MOSI pin (Master Data Out)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); //GPIO14 is HSPI CLK pin (Clock)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); //GPIO15 is HSPI CS pin (Chip Select / Slave Select)
 
-	hspi_mode(0, 0);
+	hspi_mode(1, 0);
 
 
 	//hspi_clock(HSPI_PRESCALER, HSPI_DIVIDER);

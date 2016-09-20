@@ -60,6 +60,7 @@ void toggle_led ()
 
 void spi_transaction ()
 {
+	PIN_PULLUP_EN();
 	// set the clock
 	mpu9250_hspi_clock_upgrade(predivider, sck_up, sck_down);
 	//hspi_clock(predivider, sck_up + sck_down);
@@ -68,6 +69,40 @@ void spi_transaction ()
 	// perform the transaction
 	spi_data_in = (int) hspi_transaction(0,0,0,0,8,spi_address | 0x80,8,0); // read / dummy
 	// update the remote GUI (nothing : currently done by a FreeRTOS task)
+}
+
+void i2c_transaction ()
+{
+	// read Who Am I to spi_data_in
+	// This will be a single-byte read (see MEMS datasheet page 35)
+	i2c_start();
+
+	// send the IMU address
+	i2c_writeByte(0xD0);	// write address
+	// check for ACK. Assume the device responds
+	i2c_check_ack ();
+
+	// send the register address
+	i2c_writeByte(117);	// "who am i"
+	// check for ACK. Assume the device responds
+	i2c_check_ack ();
+
+	// restart
+	i2c_start();
+
+	// send the IMU address
+	i2c_writeByte(0xD1);	// read address
+	// check for ACK. Assume the device responds
+	i2c_check_ack ();
+
+	// read one byte
+	spi_data_in = i2c_readByte();
+
+	// NACK to end the read burst
+	i2c_send_ack(0);
+
+	i2c_stop();
+
 }
 
 
@@ -107,7 +142,8 @@ void task_gui_setup(void *pvParameters)
 		unity_setup_int (&spi_data_in,	"Value", 0, 1,	TILE_5);
 
 		// Setup firmware functions so that they can be called from the Unity application
-		unity_setup_function (spi_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
+		//unity_setup_function (spi_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
+		unity_setup_function (i2c_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
 
 		// Setup "int" variable and function call button for the LED
 
@@ -171,7 +207,8 @@ void user_init(void)
 	PIN_FUNC_SELECT(LED_GPIO_MUX, LED_GPIO_FUNC);
 
 	// MEMS IMU init
-	mpu9250_init();
+	//mpu9250_init();
+	mpu9250_i2c_init();
 
 	// Disable I²C interface
 //	hspi_transaction(0,0,8,106,8, 0x10   ,0,0);

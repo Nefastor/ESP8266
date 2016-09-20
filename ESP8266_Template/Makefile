@@ -123,7 +123,7 @@ endif
 TARGET		= app
 
 # which modules (subdirectories) of the project to include in compiling
-MODULES	= user libraries/GPIO libraries/HSPI libraries/Unity libraries/MPU9250
+MODULES	= user libraries/GPIO libraries/HSPI libraries/Unity libraries/MPU9250 libraries/I2C
 #HSPI ILI9341
 EXTRA_INCDIR = include
 
