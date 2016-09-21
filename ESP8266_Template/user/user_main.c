@@ -60,7 +60,6 @@ void toggle_led ()
 
 void spi_transaction ()
 {
-	PIN_PULLUP_EN();
 	// set the clock
 	mpu9250_hspi_clock_upgrade(predivider, sck_up, sck_down);
 	//hspi_clock(predivider, sck_up + sck_down);
@@ -142,8 +141,8 @@ void task_gui_setup(void *pvParameters)
 		unity_setup_int (&spi_data_in,	"Value", 0, 1,	TILE_5);
 
 		// Setup firmware functions so that they can be called from the Unity application
-		//unity_setup_function (spi_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
-		unity_setup_function (i2c_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
+		unity_setup_function (spi_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
+		//unity_setup_function (i2c_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
 
 		// Setup "int" variable and function call button for the LED
 
@@ -207,8 +206,8 @@ void user_init(void)
 	PIN_FUNC_SELECT(LED_GPIO_MUX, LED_GPIO_FUNC);
 
 	// MEMS IMU init
-	//mpu9250_init();
-	mpu9250_i2c_init();
+	mpu9250_init();
+	//mpu9250_i2c_init();
 
 	// Disable I²C interface
 //	hspi_transaction(0,0,8,106,8, 0x10   ,0,0);
