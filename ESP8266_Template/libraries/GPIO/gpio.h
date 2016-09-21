@@ -287,6 +287,27 @@ uint32 gpio_input_get(void);
   * @}
   */
 
+//////////////////////////// Nefastor's new GPIO functions /////////////////////////////////////
+
+uint32 gpio_mux (int pin);		// MUX pin GPIOn as a GPIO (n according to Espressif numbering, 0..15)
+
+void inline gpio_pullup_off(uint32 pin_mux_reg_addr);
+
+void inline gpio_pullup_on(uint32 pin_mux_reg_addr);
+
+void inline gpio_set_pullup (uint32 pin_mux_reg_addr, uint32 value);
+
+void gpio_setup_input (int pin);
+
+void gpio_setup_output (int pin, uint32 state);
+
+void inline gpio_set_output (int pin, uint32 state); // EXPERMIENTAL UNTESTED
+
+void gpio_setup_drive_strength (int pin, int drive);
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 #ifdef __cplusplus
 }
 #endif

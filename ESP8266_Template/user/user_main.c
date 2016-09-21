@@ -47,20 +47,52 @@ int sck_up = 8;
 int sck_down = 32;
 int spi_address = 117;	// default to MPU9250 "who am I" register address (7 bits)
 int spi_data_in = 0;	// whatever comes out of the MPU9250
+// GPIO experiment globals
+int pin = 14;			// Start with GPIO14
+int pullup = 0;			// Disabled by default
+int direction = 0;		// Input by default
+int state = 0;			// State to set (if direction is output)
+int drive = 0;			// 1 for open drain
+// I²C stuff
 
 
 // MCUnity setup, phase 2 : add in functions that can be triggered from GUI buttons
 // Special SPI GUI
+
+void gpio_update ()
+{
+	// address of the pin's register
+	uint32 addr_pin = PERIPHS_GPIO_BASEADDR + GPIO_PIN0_ADDRESS + (pin << 2); // 0x60000300 + 0x28 + pin * 4
+	// address of the pin's muxing register
+	uint32 addr_mux = gpio_mux(pin); // mux pin as GPIO and get the register's address at the same time
+	// pin mask
+	//uint32 pin_mask = 1 << pin;
+
+	// drive type
+	gpio_setup_drive_strength (pin, drive);
+
+	// pull-up control
+	gpio_set_pullup(addr_mux, pullup & 0x1);
+
+	// set direction (in/out)
+	if (direction == 1)
+		gpio_setup_output (pin, state);   // set state (if direction is output)
+	else
+		gpio_setup_input (pin);
+
+
+
+}
 
 void toggle_led ()
 {
 	led = 1 - led;
 	GPIO_OUTPUT_SET (LED_GPIO, led);
 }
-
+/*
 void spi_transaction ()
 {
-	PIN_PULLUP_EN();
+	//PIN_PULLUP_EN();
 	// set the clock
 	mpu9250_hspi_clock_upgrade(predivider, sck_up, sck_down);
 	//hspi_clock(predivider, sck_up + sck_down);
@@ -70,7 +102,7 @@ void spi_transaction ()
 	spi_data_in = (int) hspi_transaction(0,0,0,0,8,spi_address | 0x80,8,0); // read / dummy
 	// update the remote GUI (nothing : currently done by a FreeRTOS task)
 }
-
+*/
 void i2c_transaction ()
 {
 	// read Who Am I to spi_data_in
@@ -99,7 +131,7 @@ void i2c_transaction ()
 	spi_data_in = i2c_readByte();
 
 	// NACK to end the read burst
-	i2c_send_ack(0);
+	i2c_send_ack(1);		// SDA = 1 means NACK
 
 	i2c_stop();
 
@@ -122,6 +154,8 @@ void i2c_transaction ()
 
 // MCUnity setup, phase 4 : write a task to setup the application's GUI
 
+// GPIO TEST VERSION
+/*
 void task_gui_setup(void *pvParameters)
 {
 	while (1)		// this loop allows MCUnity to re-setup the GUI if the application requests it
@@ -135,19 +169,54 @@ void task_gui_setup(void *pvParameters)
 		////////// project-specific GUI setup code starts here ////////////
 
 		// Application (firmware) specific GUI setup operations:
-		unity_setup_int (&predivider,	"Prediv", 0, 1000,	TILE_1); // GUI_FLAGS(0,0,4,3,0,0,0));
-		unity_setup_int (&sck_up,				"SCK up", 0, 63,			TILE_2); // GUI_FLAGS(4,0,4,3,0,0,0));
-		unity_setup_int (&sck_down,				"SCK down", 0, 63,			TILE_3); // GUI_FLAGS(4,0,4,3,0,0,0));
-		unity_setup_int (&spi_address, "Register", -300, 300,			TILE_4); // GUI_FLAGS(0,3,4,3,0,0,0));
-		unity_setup_int (&spi_data_in,	"Value", 0, 1,	TILE_5);
+		unity_setup_int (&pin,	"GPIO Pin", 0, 1000,	TILE_1); // GUI_FLAGS(0,0,4,3,0,0,0));
+		unity_setup_int (&pullup,				"Pull-up", 0, 63,			TILE_2); // GUI_FLAGS(4,0,4,3,0,0,0));
+		unity_setup_int (&direction,				"Direction", 0, 63,			TILE_3); // GUI_FLAGS(4,0,4,3,0,0,0));
+		unity_setup_int (&state, "State", -300, 300,			TILE_4); // GUI_FLAGS(0,3,4,3,0,0,0));
+		unity_setup_int (&drive,	"Strength", 0, 1,	TILE_5);
+
+		// Setup firmware functions so that they can be called from the Unity application
+		unity_setup_function (gpio_update, "Implement",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
+		unity_setup_function (toggle_led, "Toggle LED", TILE_7);
+
+		////////// project-specific GUI setup code ends here ////////////
+
+		// After setting up the GUI, transition to "update" mode
+		unity_setup_rtos_complete ();
+	}
+}
+*/
+
+// MPU9250 TEST VERSION
+void task_gui_setup(void *pvParameters)
+{
+	while (1)		// this loop allows MCUnity to re-setup the GUI if the application requests it
+	{
+		vTaskSuspend (NULL);		// start suspended, let MCUnity decide when to setup the GUI
+
+		while (unity_not_ready())
+			vTaskDelay (1);	// delay is necessary, let other tasks work while waiting
+		// note : longer delay doesn't help with initial setup glitch
+
+		////////// project-specific GUI setup code starts here ////////////
+
+		// Application (firmware) specific GUI setup operations:
+		unity_setup_int (&pin,	"GPIO Pin", 0, 1000,	TILE_1); // GUI_FLAGS(0,0,4,3,0,0,0));
+		unity_setup_int (&pullup,				"Pull-up", 0, 63,			TILE_2); // GUI_FLAGS(4,0,4,3,0,0,0));
+		unity_setup_int (&direction,				"Direction", 0, 63,			TILE_3); // GUI_FLAGS(4,0,4,3,0,0,0));
+		unity_setup_int (&state, "State", -300, 300,			TILE_4); // GUI_FLAGS(0,3,4,3,0,0,0));
+		unity_setup_int (&drive,	"Strength", 0, 1,	TILE_5);
 
 		// Setup firmware functions so that they can be called from the Unity application
 		//unity_setup_function (spi_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
-		unity_setup_function (i2c_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
+		//unity_setup_function (i2c_transaction, "Transaction",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
+		unity_setup_function (gpio_update, "Implement",				TILE_6); // GUI_FLAGS(4,3,4,3,0,0,0));
 
 		// Setup "int" variable and function call button for the LED
 
 		unity_setup_function (toggle_led, "Toggle LED", TILE_7);
+
+		unity_setup_function (i2c_transaction, "I2C", TILE_8);
 
 		// Let's add some more !
 //		unity_setup_function (toggle_led, "Toggle LED 2", TILE_7);

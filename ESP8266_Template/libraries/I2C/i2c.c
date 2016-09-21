@@ -1,6 +1,6 @@
 /*
     I2C driver for the ESP8266 
-    Copyright (C) 2014 Rudy Hardeman (zarya) 
+    Copyright (C) 2016 Nefastor Online (nefastor.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,44 +17,25 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-//#include "ets_sys.h"
-//#include "osapi.h"
 #include "i2c.h"
 
 /**
- * Set SDA to state. Nefastor made it inline
+ * Set SDA and SCL state. Nefastor made it inline
  *
  * Nefastor asks: exactly what is used to change the pin's state? Driver or pull-up?
  */
 LOCAL inline void ICACHE_FLASH_ATTR
 i2c_sda(uint8 state)
 {
-    state &= 0x01;	// Nefastor : useless. Amended : necessary due to poor coding of other functions.
-
-   // GPIO_OUTPUT_SET(I2C_SDA_PIN,state);
-
-
-    //Set SDA line to state
-    if (state)
-        gpio_output_set(1 << I2C_SDA_PIN, 0, 1 << I2C_SDA_PIN, 0);
-    else
-        gpio_output_set(0, 1 << I2C_SDA_PIN, 1 << I2C_SDA_PIN, 0);
-
+    // Use the pull-up to drive the bus
+	gpio_set_pullup (I2C_SDA_MUX, state);
 }
 
-/**
- * Set SCK to state. Nefastor made it inline
- */
 LOCAL inline void ICACHE_FLASH_ATTR
 i2c_sck(uint8 state)
 {
-	// GPIO_OUTPUT_SET(I2C_SCK_PIN,state);
-
-    //Set SCK line to state
-    if (state)
-        gpio_output_set(1 << I2C_SCK_PIN, 0, 1 << I2C_SCK_PIN, 0);
-    else
-        gpio_output_set(0, 1 << I2C_SCK_PIN, 1 << I2C_SCK_PIN, 0);
+	// Use the pull-up to drive the bus
+	gpio_set_pullup (I2C_SCK_MUX, state);
 }
 
 /**
@@ -67,33 +48,25 @@ i2c_init(void)
     //Disable interrupts
 //    ETS_GPIO_INTR_DISABLE();
 
-    //Set pin functions
-    PIN_FUNC_SELECT(I2C_SDA_MUX, I2C_SDA_FUNC);		// GPIO13
-    PIN_FUNC_SELECT(I2C_SCK_MUX, I2C_SCK_FUNC);		// GPIO14
-// REPLACED WITH CUSTOM CODE IN MPU9250 LIB FOR DEVELOPMENT
-    //Set SDA as open drain
-    GPIO_REG_WRITE(
-        GPIO_PIN_ADDR(GPIO_ID_PIN(I2C_SDA_PIN)), 
-        GPIO_REG_READ(GPIO_PIN_ADDR(GPIO_ID_PIN(I2C_SDA_PIN))) | 
-        GPIO_PIN_PAD_DRIVER_SET(GPIO_PAD_DRIVER_ENABLE)
-    );
+    //Set pin functions as GPIO
+    gpio_mux (I2C_SDA_PIN);
+    gpio_mux (I2C_SCK_PIN);
 
-    GPIO_REG_WRITE(GPIO_ENABLE_ADDRESS, GPIO_REG_READ(GPIO_ENABLE_ADDRESS) | (1 << I2C_SDA_PIN));
+    // Set pins as inputs
+    gpio_setup_input(I2C_SDA_PIN);
+	gpio_setup_input(I2C_SCK_PIN);
 
-    //Set SCK as open drain
-    GPIO_REG_WRITE(
-        GPIO_PIN_ADDR(GPIO_ID_PIN(I2C_SCK_PIN)), 
-        GPIO_REG_READ(GPIO_PIN_ADDR(GPIO_ID_PIN(I2C_SCK_PIN))) | 
-        GPIO_PIN_PAD_DRIVER_SET(GPIO_PAD_DRIVER_ENABLE)
-    );
+	// Set drivers as open drain
+	gpio_setup_drive_strength (I2C_SDA_PIN, 1);
+	gpio_setup_drive_strength (I2C_SCK_PIN, 1);
 
-    GPIO_REG_WRITE(GPIO_ENABLE_ADDRESS, GPIO_REG_READ(GPIO_ENABLE_ADDRESS) | (1 << I2C_SCK_PIN));
+    // Activate pull-ups on both pins (sets the bus to its default state)
+	gpio_pullup_on (I2C_SDA_MUX);
+	gpio_pullup_on (I2C_SCK_MUX);
 
     //Turn interrupt back on
 //    ETS_GPIO_INTR_ENABLE();
 
-    i2c_sda(1);
-    i2c_sck(1);
     return;
 }
 
@@ -126,126 +99,104 @@ i2c_stop(void)
 }
 
 /**
- * Send I2C ACK to the bus
- * uint8 state 1 or 0
- *  1 for ACK
- *  0 for NACK
- */
-void inline ICACHE_FLASH_ATTR
-i2c_send_ack(uint8 state)
-{
-    i2c_sck(0);
-    os_delay_us(I2C_SLEEP_TIME);
-    //Set SDA 
-    //  HIGH for NACK
-    //  LOW  for ACK
-    i2c_sda((state?0:1));
-
-    //Pulse the SCK
-    i2c_sck(0);
-    os_delay_us(I2C_SLEEP_TIME);
-    i2c_sck(1);
-    os_delay_us(I2C_SLEEP_TIME);
-    i2c_sck(0);
-    os_delay_us(I2C_SLEEP_TIME);
-
-    i2c_sda(1);
-    os_delay_us(I2C_SLEEP_TIME);
-}
-
-/**
- * Receive I2C ACK from the bus
- * returns 1 or 0
- *  1 for ACK
- *  0 for NACK
- */
-uint8 ICACHE_FLASH_ATTR
-i2c_check_ack(void)
-{
-    uint8 ack;
-    // i2c_sda(1);		// that looks suspicious... forces SDA to 1 !
-    // i2c_sda(0);	too strong
-
-    GPIO_DIS_OUTPUT(I2C_SDA_PIN); // should release the pin
-
-
-    os_delay_us(I2C_SLEEP_TIME);
-    i2c_sck(0);
-    os_delay_us(I2C_SLEEP_TIME);
-    i2c_sck(1);
-    os_delay_us(I2C_SLEEP_TIME);
-
-    //Get SDA pin status
-    ack = i2c_read(); 
-
-    os_delay_us(I2C_SLEEP_TIME);
-    i2c_sck(0);
-    os_delay_us(I2C_SLEEP_TIME);
-    //i2c_sda(0);		// why now ?
-    //os_delay_us(I2C_SLEEP_TIME);
-
-    return (ack?0:1);
-}
-
-/**
- * Receive byte from the I2C bus 
- * returns the byte 
+ * Receive byte from the I2C bus
+ * returns the byte
  */
 uint8 ICACHE_FLASH_ATTR
 i2c_readByte(void)
 {
     uint8 data = 0;
-    uint8 data_bit;
     uint8 i;
 
-    //i2c_sda(1);	// why ???
-    // i2c_sda(0);
+    i2c_sda(1);	// release the bus (enable the pull-up, which the slave will need to overcome)
 
-    GPIO_DIS_OUTPUT(I2C_SDA_PIN); // should release the pin
 
     for (i = 0; i < 8; i++)
     {
-        os_delay_us(I2C_SLEEP_TIME);
         i2c_sck(0);
         os_delay_us(I2C_SLEEP_TIME);
 
         i2c_sck(1);
         os_delay_us(I2C_SLEEP_TIME);
 
-        data_bit = i2c_read();
-        os_delay_us(I2C_SLEEP_TIME);
-
-        data_bit <<= (7 - i);
-        data |= data_bit;
+        data = (data << 1) | i2c_read();
     }
-    i2c_sck(0);
+
+    os_delay_us(I2C_SLEEP_TIME);	// precautionary, might be unnecessary
+    i2c_sck(0);			// in prevision for the ACK/NACK sent next
     os_delay_us(I2C_SLEEP_TIME);
-    
+
     return data;
 }
 
 /**
+ * Send I2C ACK to the bus
+ * uint8 state 1 or 0
+ *  0 for ACK
+ *  1 for NACK
+ */
+void inline ICACHE_FLASH_ATTR
+i2c_send_ack(uint8 state)
+{
+    i2c_sda(state);
+    //Pulse the SCK
+    os_delay_us(I2C_SLEEP_TIME);
+    i2c_sck(1);
+    os_delay_us(I2C_SLEEP_TIME);
+    i2c_sck(0);
+    os_delay_us(I2C_SLEEP_TIME);
+    i2c_sda(1);						// release the bus
+    os_delay_us(I2C_SLEEP_TIME);
+}
+
+
+/**
  * Write byte to I2C bus
- * uint8 data: to byte to be writen
- *
- * NEFASTOR : this looks like it won't work.
+ * uint8 data: to byte to be written
+ * Note : does NOT release SDA, this is done in i2c_check_ack()
  */
 void ICACHE_FLASH_ATTR
 i2c_writeByte(uint8 data)
 {
-    uint8 data_bit;
-    sint8 i;
+    uint8 i = 8;
 
-    os_delay_us(I2C_SLEEP_TIME);
+    while (i)		// can i-- go there instead ?
+    {
+    	i--;	// will go from 7 down to 0, and the loop will execute for 0
 
-    for (i = 7; i >= 0; i--) {
-        data_bit = data >> i;
-        i2c_sda(data_bit);				// Nefastor WTF ??? If "data" has an MSB at 1, it'll be the same as sending 0xFF
+    	i2c_sck(0);
+        os_delay_us(I2C_SLEEP_TIME);
+
+        i2c_sda((data >> i) & 0x1);
+
         os_delay_us(I2C_SLEEP_TIME);
         i2c_sck(1);
-        os_delay_us(I2C_SLEEP_TIME);
-        i2c_sck(0);
+
         os_delay_us(I2C_SLEEP_TIME);
     }
-    //i2c_sda(0);	// let the pull-up drive the line.
+}
+/**
+ * Receive I2C ACK from the bus
+ * returns 1 or 0
+ *  0 for ACK
+ *  1 for NACK
+ */
+uint8 ICACHE_FLASH_ATTR
+i2c_check_ack(void)
+{
+    uint8 ack;
+
+    i2c_sck(0);  // following a byte write, SCK == 1 and has been for a while
+    os_delay_us(I2C_SLEEP_TIME);
+    i2c_sda(1);			// enable the pull-up, which the slave will need to overcome
+    i2c_sck(1);
+    os_delay_us(I2C_SLEEP_TIME);
+
+    ack = i2c_read(); 	//Get SDA pin status (that's a macro, not a function)
+
+    // the following two statements appears necessary, not sure why : investigate
+    i2c_sck(0);
+    os_delay_us(I2C_SLEEP_TIME);
+
+    return (ack);	// bus state at that point : SCK low, SDA pulled up
 }

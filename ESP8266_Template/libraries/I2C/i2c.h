@@ -1,6 +1,6 @@
 /*
     I2C driver for the ESP8266 
-    Copyright (C) 2014 Rudy Hardeman (zarya) 
+    Copyright (C) 2016 Nefastor Online (nefastor.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

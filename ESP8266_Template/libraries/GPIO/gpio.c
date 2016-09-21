@@ -27,6 +27,89 @@
 
 #include "gpio.h"
 
+//////////////////////////// Nefastor's new GPIO functions /////////////////////////////////////
+
+// GPIO MUXing LUT's
+uint8 mux_offset[16] = {0x34, 0x18, 0x38, 0x14, 0x3C, 0x40, 0x1C, 0x20, 0x24, 0x28, 0x2C, 0x30, 0x04, 0x08, 0x0C, 0x10};
+uint8 mux_func_nice[16] = {0, 3, 0, 3, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+uint8 mux_func[16] = {0x00, 0x30, 0x00, 0x30, 0x00, 0x00, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30}; // as mux register bit fields
+uint16 mux_func_to_mask[5] = {0x00, 0x10, 0x20, 0x30, 0x100};	// just because I can
+
+// GPIO MUXing
+uint32 gpio_mux (int pin)
+{
+	// Writing a more economical pin MUXing function
+	//PIN_FUNC_SELECT (PERIPHS_IO_MUX + mux_offset[pin], mux_func_nice[pin]);
+	uint32 mux_addr = PERIPHS_IO_MUX + mux_offset[pin];
+	// CLEAR_PERI_REG_MASK(mux_addr, 0x130);		// clear the FUNC field of the muxing register (because setting uses bitwise OR
+	// SET_PERI_REG_MASK(mux_addr, mux_func[pin]);
+	uint32 reg = READ_PERI_REG(mux_addr) & (~0x130);  // read and clear mux bits
+	WRITE_PERI_REG(mux_addr, reg | mux_func[pin]);	  // OR and write back
+	return mux_addr; // could be useful
+}
+
+// GPIO pull-up off
+void inline gpio_pullup_off(uint32 pin_mux_reg_addr)
+{
+	uint32 reg = READ_PERI_REG(pin_mux_reg_addr) & (~BIT7);  // turn off the pull-up
+	WRITE_PERI_REG(pin_mux_reg_addr, reg);
+}
+
+// GPIO pull-up on
+// argument: PERIPHS_IO_MUX + mux_offset[pin_number]
+void inline gpio_pullup_on(uint32 pin_mux_reg_addr)
+{
+	uint32 reg = READ_PERI_REG(pin_mux_reg_addr);  // turn off the pull-up
+	WRITE_PERI_REG(pin_mux_reg_addr, reg | BIT7);
+}
+
+void inline gpio_set_pullup (uint32 pin_mux_reg_addr, uint32 value)
+{
+	uint32 reg = READ_PERI_REG(pin_mux_reg_addr) & (~BIT7);  // read and clear mux bit
+	WRITE_PERI_REG(pin_mux_reg_addr, reg | (value << 7));	  // OR and write back to "value"
+}
+
+void gpio_setup_input (int pin)
+{
+	// just disable the pin
+	GPIO_REG_WRITE(GPIO_ENABLE_W1TC_ADDRESS, 0x1 << pin);
+}
+
+uint32 inline gpio_get_input (int pin)
+{
+	return (GPIO_REG_READ(GPIO_IN_ADDRESS) >> pin) & 0x1;
+}
+
+void gpio_setup_output (int pin, uint32 state)
+{
+	GPIO_REG_WRITE(GPIO_OUT_W1TS_ADDRESS, state << pin);
+	GPIO_REG_WRITE(GPIO_OUT_W1TC_ADDRESS, (1-state) << pin);
+	GPIO_REG_WRITE(GPIO_ENABLE_W1TS_ADDRESS, 0x1 << pin);
+	// GPIO_REG_WRITE(GPIO_ENABLE_W1TC_ADDRESS, 0); // appears unnecessary
+}
+
+// Experimental fast version (UNTESTED):
+void inline gpio_set_output (int pin, uint32 state)
+{
+	GPIO_REG_WRITE(GPIO_OUT_W1TS_ADDRESS, state << pin);
+	GPIO_REG_WRITE(GPIO_OUT_W1TC_ADDRESS, (1-state) << pin);
+	// GPIO_REG_WRITE(GPIO_ENABLE_W1TS_ADDRESS, 0x1 << pin); // assume pin is enabled as output
+	// GPIO_REG_WRITE(GPIO_ENABLE_W1TC_ADDRESS, 0); // appears unnecessary
+}
+
+void gpio_setup_drive_strength (int pin, int drive)
+{
+	// drive strength is setup in the pin register
+	uint32 addr_pin = PERIPHS_GPIO_BASEADDR + GPIO_PIN0_ADDRESS + (pin << 2); // 0x60000300 + 0x28 + pin * 4
+	// specifically, gpio_register.h defines the fields GPIO_PIN0_DRIVER and GPIO_PIN0_DRIVER_S
+	if (drive == 0)
+		CLEAR_PERI_REG_MASK(addr_pin, BIT2); // Normal Drive : clear the field
+	else
+		SET_PERI_REG_MASK(addr_pin, BIT2);	// Open Drain : set the field
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 // Nefastor : original function, very poorly coded.
 void gpio_config(GPIO_ConfigTypeDef *pGPIOConfig)
 {
@@ -94,6 +177,9 @@ void gpio_config(GPIO_ConfigTypeDef *pGPIOConfig)
  * There is no particular ordering guaranteed; so if the order of
  * writes is significant, calling code should divide a single call
  * into multiple calls.
+ */
+/* Nefastor says :
+ * I'm using similar code in my own API yet it's apparently unable to clear pins
  */
 void gpio_output_conf(uint32 set_mask, uint32 clear_mask, uint32 enable_mask, uint32 disable_mask)
 {

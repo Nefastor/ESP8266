@@ -41,8 +41,8 @@ void mpu9250_i2c_init ()
 	i2c_init ();
 
 	// moar config
-	gpio_config(&hspi_io[1]);
-	gpio_config(&hspi_io[2]);
+	//gpio_config(&hspi_io[1]);
+	//gpio_config(&hspi_io[2]);
 }
 
 
