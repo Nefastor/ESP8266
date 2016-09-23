@@ -22,27 +22,9 @@ void mpu9250_i2c_init ()
 	// force FSYNC (through GPIO15) to "0"
 	PIN_FUNC_SELECT(FSYNC_MUX, FSYNC_FUNC);
 	GPIO_OUTPUT_SET(FSYNC_PIN,0);
-/*
-	// SDA
-	hspi_io[1].GPIO_Pin = GPIO_Pin_13;
-	hspi_io[1].GPIO_IntrType = GPIO_PIN_INTR_DISABLE;
-	hspi_io[1].GPIO_Pullup = 0;		// 0 to disable, 1 to enable
-	hspi_io[1].GPIO_Mode = GPIO_Mode_Out_OD;
-
-	// SCL
-	hspi_io[2].GPIO_Pin = GPIO_Pin_14;
-	hspi_io[2].GPIO_IntrType = GPIO_PIN_INTR_DISABLE;
-	hspi_io[2].GPIO_Pullup = 0;		// 0 to disable, 1 to enable
-	hspi_io[2].GPIO_Mode = GPIO_Mode_Out_OD;
-*/
-
 
 	// initialize bit-banging driver
 	i2c_init ();
-
-	// moar config
-	//gpio_config(&hspi_io[1]);
-	//gpio_config(&hspi_io[2]);
 }
 
 

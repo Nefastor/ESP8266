@@ -69,7 +69,7 @@ void gpio_update ()
 	//uint32 pin_mask = 1 << pin;
 
 	// drive type
-	gpio_setup_drive_strength (pin, drive);
+	gpio_setup_drive_strength (pin, drive & 0x1);
 
 	// pull-up control
 	gpio_set_pullup(addr_mux, pullup & 0x1);
@@ -217,10 +217,6 @@ void task_gui_setup(void *pvParameters)
 		unity_setup_function (toggle_led, "Toggle LED", TILE_7);
 
 		unity_setup_function (i2c_transaction, "I2C", TILE_8);
-
-		// Let's add some more !
-//		unity_setup_function (toggle_led, "Toggle LED 2", TILE_7);
-//		unity_setup_function (toggle_led, "Toggle LED 3", TILE_8);
 
 		////////// project-specific GUI setup code ends here ////////////
 

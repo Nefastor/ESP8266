@@ -24,29 +24,28 @@
  *
  * Nefastor asks: exactly what is used to change the pin's state? Driver or pull-up?
  */
-LOCAL inline void ICACHE_FLASH_ATTR
-i2c_sda(uint8 state)
+//LOCAL inline void ICACHE_FLASH_ATTR
+inline void i2c_sda(uint8 state)
 {
-    // Use the pull-up to drive the bus
-	gpio_set_pullup (I2C_SDA_MUX, state);
+	gpio_set_pullup (I2C_SDA_MUX, state);    // Use the pull-up to drive the bus
 }
 
-LOCAL inline void ICACHE_FLASH_ATTR
-i2c_sck(uint8 state)
+//LOCAL inline void ICACHE_FLASH_ATTR
+inline void i2c_sck(uint8 state)
 {
-	// Use the pull-up to drive the bus
-	gpio_set_pullup (I2C_SCK_MUX, state);
+	gpio_set_pullup (I2C_SCK_MUX, state);	// Use the pull-up to drive the bus
 }
 
 /**
  * I2C init function
  * This sets up the GPIO io
  */
-void ICACHE_FLASH_ATTR
-i2c_init(void)
+// void ICACHE_FLASH_ATTR
+void i2c_init(void)
 {
     //Disable interrupts
 //    ETS_GPIO_INTR_DISABLE();
+	taskENTER_CRITICAL();
 
     //Set pin functions as GPIO
     gpio_mux (I2C_SDA_PIN);
@@ -61,11 +60,12 @@ i2c_init(void)
 	gpio_setup_drive_strength (I2C_SCK_PIN, 1);
 
     // Activate pull-ups on both pins (sets the bus to its default state)
-	gpio_pullup_on (I2C_SDA_MUX);
-	gpio_pullup_on (I2C_SCK_MUX);
+	gpio_set_pullup (I2C_SDA_MUX,1); //gpio_pullup_on (I2C_SDA_MUX);
+	gpio_set_pullup (I2C_SCK_MUX,1); //gpio_pullup_on (I2C_SCK_MUX);
 
     //Turn interrupt back on
 //    ETS_GPIO_INTR_ENABLE();
+	taskEXIT_CRITICAL();
 
     return;
 }
@@ -73,8 +73,8 @@ i2c_init(void)
 /**
  * I2C Start signal 
  */
-void inline ICACHE_FLASH_ATTR
-i2c_start(void)
+//void inline ICACHE_FLASH_ATTR
+void inline i2c_start(void)
 {
     i2c_sda(1);
     i2c_sck(1);
@@ -88,8 +88,8 @@ i2c_start(void)
 /**
  * I2C Stop signal 
  */
-void inline ICACHE_FLASH_ATTR
-i2c_stop(void)
+//void inline ICACHE_FLASH_ATTR
+void inline i2c_stop(void)
 {
     os_delay_us(I2C_SLEEP_TIME);
     i2c_sck(1);
@@ -102,8 +102,8 @@ i2c_stop(void)
  * Receive byte from the I2C bus
  * returns the byte
  */
-uint8 ICACHE_FLASH_ATTR
-i2c_readByte(void)
+//uint8 ICACHE_FLASH_ATTR
+uint8 i2c_readByte(void)
 {
     uint8 data = 0;
     uint8 i;
@@ -135,8 +135,8 @@ i2c_readByte(void)
  *  0 for ACK
  *  1 for NACK
  */
-void inline ICACHE_FLASH_ATTR
-i2c_send_ack(uint8 state)
+// void inline ICACHE_FLASH_ATTR
+void inline i2c_send_ack(uint8 state)
 {
     i2c_sda(state);
     //Pulse the SCK
@@ -155,8 +155,8 @@ i2c_send_ack(uint8 state)
  * uint8 data: to byte to be written
  * Note : does NOT release SDA, this is done in i2c_check_ack()
  */
-void ICACHE_FLASH_ATTR
-i2c_writeByte(uint8 data)
+//void ICACHE_FLASH_ATTR
+void i2c_writeByte(uint8 data)
 {
     uint8 i = 8;
 
@@ -181,8 +181,8 @@ i2c_writeByte(uint8 data)
  *  0 for ACK
  *  1 for NACK
  */
-uint8 ICACHE_FLASH_ATTR
-i2c_check_ack(void)
+//ICACHE_FLASH_ATTR
+uint8 i2c_check_ack(void)
 {
     uint8 ack;
 

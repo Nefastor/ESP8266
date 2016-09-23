@@ -27,16 +27,50 @@
 
 #include "gpio.h"
 
+
+
 //////////////////////////// Nefastor's new GPIO functions /////////////////////////////////////
 
 // GPIO MUXing LUT's
 uint8 mux_offset[16] = {0x34, 0x18, 0x38, 0x14, 0x3C, 0x40, 0x1C, 0x20, 0x24, 0x28, 0x2C, 0x30, 0x04, 0x08, 0x0C, 0x10};
-uint8 mux_func_nice[16] = {0, 3, 0, 3, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+//uint8 mux_func_nice[16] = {0, 3, 0, 3, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}; // indexed by GPIO number
 uint8 mux_func[16] = {0x00, 0x30, 0x00, 0x30, 0x00, 0x00, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30}; // as mux register bit fields
 uint16 mux_func_to_mask[5] = {0x00, 0x10, 0x20, 0x30, 0x100};	// just because I can
 
+// experimental : direct access to registers
+uint8 mux_lut[16] = {12 ,5 ,13 ,4 ,14 ,15 ,6 ,7 ,8 ,9 ,10 ,11, 0 ,1 ,2 ,3 }; // GPIO number reordering. do ((mux_lut[n] + 1) << 2) to get the offset to the pin muxing register
+// Note : the "+1" is unnecessary if the base address is that of the first pin : PERIPHS_IO_MUX_MTDI_U
+
+#ifdef EXPERIMENTAL
+// Mux registers as array:
+//volatile uint32* mux = (volatile uint32 *)ETS_UNCACHED_ADDR(PERIPHS_IO_MUX_MTDI_U);
+volatile PIN_MUX_register* mux = (volatile PIN_MUX_register *)ETS_UNCACHED_ADDR(PERIPHS_IO_MUX_MTDI_U);
+// it should be possible to access the muxing registers using mux[mux_lut[gpio number]]
+
+// same for pin registers:
+volatile GPIO_PIN_register* gpio = (volatile GPIO_PIN_register *)ETS_UNCACHED_ADDR(PERIPHS_GPIO_BASEADDR + GPIO_PIN0_ADDRESS);
+#endif
+
 // GPIO MUXing
 uint32 gpio_mux (int pin)
+#ifdef EXPERIMENTAL
+// easiest to read but takes even more space.
+{
+	int i = mux_lut[pin];
+	mux[i].field.func_msb = 0;
+	mux[i].field.func = mux_func[pin];
+}
+/* Easier to read but takes more RAM
+{
+	PIN_MUX_register mux_reg;
+	mux_reg.rawVector = mux[mux_lut[pin]];
+	// modify mux_reg fields
+	mux_reg.field.func_msb = 0;			// GPIO function is either 0 or 3
+	mux_reg.field.func = mux_func[pin];	// This table is ordered by GPIO pin number
+	mux[mux_lut[pin]] = mux_reg.rawVector;
+}*/
+#else
+// known good - this version takes less RAM (12 bytes less)
 {
 	// Writing a more economical pin MUXing function
 	//PIN_FUNC_SELECT (PERIPHS_IO_MUX + mux_offset[pin], mux_func_nice[pin]);
@@ -47,32 +81,57 @@ uint32 gpio_mux (int pin)
 	WRITE_PERI_REG(mux_addr, reg | mux_func[pin]);	  // OR and write back
 	return mux_addr; // could be useful
 }
+#endif
 
+/*// Old stuff : dedicated on/off functions for the pull-up. Waste of space.
 // GPIO pull-up off
 void inline gpio_pullup_off(uint32 pin_mux_reg_addr)
+#ifdef EXPERIMENTAL
+// uses 4 more bytes than the older version
+{
+	((volatile PIN_MUX_register*) pin_mux_reg_addr)->field.pull_up = 0;
+}
+#else
+// known good
 {
 	uint32 reg = READ_PERI_REG(pin_mux_reg_addr) & (~BIT7);  // turn off the pull-up
 	WRITE_PERI_REG(pin_mux_reg_addr, reg);
 }
+#endif
 
 // GPIO pull-up on
 // argument: PERIPHS_IO_MUX + mux_offset[pin_number]
 void inline gpio_pullup_on(uint32 pin_mux_reg_addr)
+#ifdef EXPERIMENTAL
+{
+	((volatile PIN_MUX_register*) pin_mux_reg_addr)->field.pull_up = 1;
+}
+#else
+//known good
 {
 	uint32 reg = READ_PERI_REG(pin_mux_reg_addr);  // turn off the pull-up
 	WRITE_PERI_REG(pin_mux_reg_addr, reg | BIT7);
 }
+#endif
+*/
 
+// value must be 0 or 1, nothing else
 void inline gpio_set_pullup (uint32 pin_mux_reg_addr, uint32 value)
+#ifdef EXPERIMENTAL
+{
+	((volatile PIN_MUX_register*) pin_mux_reg_addr)->field.pull_up = value;
+}
+#else
+// This version takes less RAM but is harder to read
 {
 	uint32 reg = READ_PERI_REG(pin_mux_reg_addr) & (~BIT7);  // read and clear mux bit
 	WRITE_PERI_REG(pin_mux_reg_addr, reg | (value << 7));	  // OR and write back to "value"
 }
+#endif
 
-void gpio_setup_input (int pin)
+void inline gpio_setup_input (int pin)
 {
-	// just disable the pin
-	GPIO_REG_WRITE(GPIO_ENABLE_W1TC_ADDRESS, 0x1 << pin);
+	GPIO_REG_WRITE(GPIO_ENABLE_W1TC_ADDRESS, 0x1 << pin);	// just disable the pin
 }
 
 uint32 inline gpio_get_input (int pin)
@@ -88,16 +147,39 @@ void gpio_setup_output (int pin, uint32 state)
 	// GPIO_REG_WRITE(GPIO_ENABLE_W1TC_ADDRESS, 0); // appears unnecessary
 }
 
-// Experimental fast version (UNTESTED):
+// Essentially the same function as "setup". Try to make this one faster.
+// (Experimental fast version is UNTESTED)
 void inline gpio_set_output (int pin, uint32 state)
 {
 	GPIO_REG_WRITE(GPIO_OUT_W1TS_ADDRESS, state << pin);
 	GPIO_REG_WRITE(GPIO_OUT_W1TC_ADDRESS, (1-state) << pin);
-	// GPIO_REG_WRITE(GPIO_ENABLE_W1TS_ADDRESS, 0x1 << pin); // assume pin is enabled as output
+#ifndef EXPERIMENTAL
+	GPIO_REG_WRITE(GPIO_ENABLE_W1TS_ADDRESS, 0x1 << pin); // assume pin is enabled as output
+#endif
 	// GPIO_REG_WRITE(GPIO_ENABLE_W1TC_ADDRESS, 0); // appears unnecessary
 }
 
+// use 0 for totem-pole, 1 for open drain, all other values are deadly
 void gpio_setup_drive_strength (int pin, int drive)
+#ifdef EXPERIMENTAL
+// very readable but takes more RAM (+8 bytes compared to the next best thing)
+{
+	gpio[pin].field.driver = drive;
+}
+#else
+// known good
+{
+	// drive strength is setup in the pin register
+	uint32 addr_pin = PERIPHS_GPIO_BASEADDR + GPIO_PIN0_ADDRESS + (pin << 2); // 0x60000300 + 0x28 + pin * 4
+
+	GPIO_PIN_register reg;
+	reg.rawVector = READ_PERI_REG(addr_pin);
+	reg.field.driver = drive;	// if drive is larger than 1 bit, will C only take the LSB ?
+	WRITE_PERI_REG(addr_pin, reg.rawVector);
+}
+
+// OLD VERSION, less readable
+/*
 {
 	// drive strength is setup in the pin register
 	uint32 addr_pin = PERIPHS_GPIO_BASEADDR + GPIO_PIN0_ADDRESS + (pin << 2); // 0x60000300 + 0x28 + pin * 4
@@ -106,11 +188,14 @@ void gpio_setup_drive_strength (int pin, int drive)
 		CLEAR_PERI_REG_MASK(addr_pin, BIT2); // Normal Drive : clear the field
 	else
 		SET_PERI_REG_MASK(addr_pin, BIT2);	// Open Drain : set the field
-}
+}*/
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Nefastor : original function, very poorly coded.
+// I'm keeping it as comment for future reference, but it's doomed.
+/*
 void gpio_config(GPIO_ConfigTypeDef *pGPIOConfig)
 {
     uint16 gpio_pin_mask = pGPIOConfig->GPIO_Pin;
@@ -167,6 +252,7 @@ void gpio_config(GPIO_ConfigTypeDef *pGPIOConfig)
         io_num++;
     } while (io_num < 16);
 }
+*/
 
 /*
  * Change GPIO pin output by setting, clearing, or disabling pins.
@@ -179,7 +265,8 @@ void gpio_config(GPIO_ConfigTypeDef *pGPIOConfig)
  * into multiple calls.
  */
 /* Nefastor says :
- * I'm using similar code in my own API yet it's apparently unable to clear pins
+ * The "enable" TC register doesn't seem necessary here.
+ * Function kept for reference only (I have better)
  */
 void gpio_output_conf(uint32 set_mask, uint32 clear_mask, uint32 enable_mask, uint32 disable_mask)
 {
@@ -191,6 +278,7 @@ void gpio_output_conf(uint32 set_mask, uint32 clear_mask, uint32 enable_mask, ui
 
 /*
  * Sample the value of GPIO input pins and returns a bitmask.
+ * TO DO : inline or turn into a macro
  */
 uint32 gpio_input_get(void)
 {
@@ -263,6 +351,10 @@ void gpio_pin_intr_state_set(uint32 i, GPIO_INT_TYPE intr_state)
 
     portEXIT_CRITICAL();
 }
+
+////////////////// GPIO 16 API ////////////////////////////////////////////
+
+// Nefastor - TO DO : make the read and write functions inline
 
 void gpio16_output_conf(void)
 {

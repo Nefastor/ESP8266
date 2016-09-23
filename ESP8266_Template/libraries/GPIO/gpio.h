@@ -25,6 +25,11 @@
 #ifndef __GPIO_H__
 #define __GPIO_H__
 
+
+// Nefastor : enable experimental version of the code
+#define EXPERIMENTAL
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -128,13 +133,16 @@ typedef struct {
   *  
   * @return  null
   */
+
 #define GPIO_OUTPUT_SET(gpio_no, bit_value) \
     gpio_output_conf(bit_value<<gpio_no, ((~bit_value)&0x01)<<gpio_no, 1<<gpio_no, 0)
+//#define GPIO_OUTPUT_SET(gpio_no, bit_value) gpio_set_output (gpio_no, bit_value)
+
 
 /**  
   * @brief   Set GPIO pin output level.
   * 
-  * @param   gpio_bits : The GPIO bit number.
+  * @param   gpio_bits : The GPIO bit number. Nefastor : a mask, actually
   * @param   bit_value : GPIO pin output level.  
   *  
   * @return  null
@@ -150,24 +158,28 @@ typedef struct {
   *  
   * @return  null
   */
+
 #define GPIO_DIS_OUTPUT(gpio_no)    gpio_output_conf(0, 0, 0, 1<<gpio_no)
+//#define GPIO_DIS_OUTPUT(gpio_no)    gpio_setup_input (gpio_no)
 
 /**  
   * @brief   Enable GPIO pin intput.
   * 
-  * @param   gpio_bits : The GPIO bit number.
+  * @param   gpio_bits : The GPIO bit number. Nefastor : a mask, actually
   *  
   * @return  null
   */
+
 #define GPIO_AS_INPUT(gpio_bits)    gpio_output_conf(0, 0, 0, gpio_bits)
 
 /**  
   * @brief   Enable GPIO pin output.
   * 
-  * @param   gpio_bits : The GPIO bit number.
+  * @param   gpio_bits : The GPIO bit number. Nefastor : a mask, actually
   *  
   * @return  null
   */
+
 #define GPIO_AS_OUTPUT(gpio_bits)   gpio_output_conf(0, 0, gpio_bits, 0)
 
 /**  
@@ -178,6 +190,7 @@ typedef struct {
   * @return  the level of GPIO input 
   */
 #define GPIO_INPUT_GET(gpio_no)     ((gpio_input_get()>>gpio_no)&BIT0)
+//#define GPIO_INPUT_GET(gpio_no)		(gpio_get_input(gpio_no))
 
 /**  
   * @brief   Enable GPIO16 output.
@@ -289,11 +302,46 @@ uint32 gpio_input_get(void);
 
 //////////////////////////// Nefastor's new GPIO functions /////////////////////////////////////
 
+// ------------------------ types -------------------------------------------
+
+typedef union
+{
+	uint32 rawVector;
+	struct
+	{
+		// assuming Microsoft / little-endian (x86) mapping, fields go from LSB to MSB
+		uint8 source	: 1;
+		uint8 			: 1;	// bit 1 <undocumented>
+		uint8 driver	: 1;	// set for open-drain, clear for totem pole
+		uint8 			: 4;	// bits 3 to 6 <undocumented>
+		uint8 irq_type	: 3;	// interrupt type
+		uint8 wakeup_en : 1;	// wake-up enable
+		// remaining bits (11..31) are undocumented
+	} field;
+} GPIO_PIN_register;
+
+typedef union
+{
+	uint32 rawVector;
+	struct
+	{
+		// assuming Microsoft / little-endian (x86) mapping, fields go from LSB to MSB
+		// fields derived from pin_mux_register.h
+		uint8 oe			: 1;
+		uint8 sleep_oe		: 1;
+		uint8 sleep_pull_dn	: 1;
+		uint8 sleep_pull_up	: 1;
+		uint8 func			: 2;	// 2 LSB of the function field
+		uint8 pull_dn		: 1;
+		uint8 pull_up		: 1;
+		uint8 func_msb		: 1;	// 1 MSB of the function field. Set only for function 4, meaning the "func" field needs to be cleared when this one is set, and vice versa
+	} field;
+} PIN_MUX_register;
+
+
+// ------------------------ API ---------------------------------------------
+
 uint32 gpio_mux (int pin);		// MUX pin GPIOn as a GPIO (n according to Espressif numbering, 0..15)
-
-void inline gpio_pullup_off(uint32 pin_mux_reg_addr);
-
-void inline gpio_pullup_on(uint32 pin_mux_reg_addr);
 
 void inline gpio_set_pullup (uint32 pin_mux_reg_addr, uint32 value);
 
@@ -304,6 +352,15 @@ void gpio_setup_output (int pin, uint32 state);
 void inline gpio_set_output (int pin, uint32 state); // EXPERMIENTAL UNTESTED
 
 void gpio_setup_drive_strength (int pin, int drive);
+
+// macros
+
+#define SET_DRIVE_STRENGTH(gpio_n, st)  (gpio[gpio_n].field.driver = st)
+#define SET_OPEN_DRAIN(gpio_n)  (gpio[gpio_n].field.driver = 1)
+
+
+// let other source files access the register arrays
+//extern volatile GPIO_PIN_register* gpio;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
