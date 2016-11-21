@@ -116,14 +116,16 @@ void mpu9250_init()
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO5_U, FUNC_GPIO5);
 	GPIO_OUTPUT_SET (5, 0);
 
-	hspi_enable_80Mhz;	// Use 80 MHz system clock as SCK
+	// Disabling because it may be what causes the ringing at sub-80 MHz SCK
+	// (Actually, had no impact)
+	// hspi_enable_80Mhz;	// Use 80 MHz system clock as SCK
 
 
 
-
+    /*
 	// try different drive modes / pull-ups
 	// MISO
-	/*
+
 	hspi_io[0].GPIO_Pin = GPIO_Pin_12;
 	hspi_io[0].GPIO_IntrType = GPIO_PIN_INTR_DISABLE;
 	hspi_io[0].GPIO_Pullup = 1;		// 0 to disable, 1 to enable
@@ -151,14 +153,9 @@ void mpu9250_init()
 	gpio_config(&hspi_io[1]);
 	gpio_config(&hspi_io[2]);
 	gpio_config(&hspi_io[3]);
-	*/
+    */
 
-	// hspi_init_gpio(); copied contents in this function
-	// Set pin muxing for HSPI - known good
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); //GPIO12 is HSPI MISO pin (Master Data In)
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); //GPIO13 is HSPI MOSI pin (Master Data Out)
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); //GPIO14 is HSPI CLK pin (Clock)
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); //GPIO15 is HSPI CS pin (Chip Select / Slave Select)
+	hspi_init_gpio();		// Set pin muxing for HSPI
 
 	hspi_mode(1, 0);
 
@@ -167,14 +164,14 @@ void mpu9250_init()
 	//hspi_clock(1, 4);	// only settings that work appear to use prescaler 0 or 1
 	//hspi_clock(0, 0);	// force 80 MHz SCK
 	// hspi_clock(1, 39);	// 1 MHz SCK
-	hspi_clock(3, 39);	// 250 KHz SCK, only setting that seems to be working
+	// hspi_clock(3, 39);	// 250 KHz SCK, only setting that seems to be working
 	//hspi_clock(15, 39);	// 62.5 KHz SCK fails (read zero)
 	//hspi_clock(3, 60);	// slightly slower clock also appears to work
 	//hspi_clock(3, 30);	// slightly faster clock also appears to work
 
 	// EXPERIMENTAL
 	// hspi_enable_ck_out_edge;	// fails
-	//hspi_disable_ck_out_edge;	// appears to have no effect
+	// hspi_disable_ck_out_edge;	// appears to have no effect
 
 	hspi_tx_byte_order_H_to_L;
 	hspi_rx_byte_order_H_to_L;

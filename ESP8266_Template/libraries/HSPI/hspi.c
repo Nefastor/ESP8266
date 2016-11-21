@@ -180,6 +180,8 @@ inline void hspi_send_uint32(uint32_t data)
 inline void hspi_init_gpio (void)
 {
 	// Set pin muxing for HSPI
+	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x105);
+	//WRITE_PERI_REG(PERIPHS_IO_MUX, 0x305); // For 80 MHz operation (ignores any clock divider settings)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); //GPIO12 is HSPI MISO pin (Master Data In)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); //GPIO13 is HSPI MOSI pin (Master Data Out)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); //GPIO14 is HSPI CLK pin (Clock)
