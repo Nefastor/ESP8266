@@ -20,21 +20,20 @@
 */
 
 
+// For fast peripherals like displays, the full SPI transaction function isn't optimal,
+// because it is designed to handle every possible type of transaction. To optimize
+// for speed, it can be deconstructed
 
 void hspi_init(void)
 {
-	hspi_enable_80Mhz;	// Use 80 MHz system clock as SCK
-
 	hspi_init_gpio();
 
-	//hspi_clock(HSPI_PRESCALER, HSPI_DIVIDER);
-	//hspi_clock(1, 4);	// only settings that work appear to use prescaler 0 or 1
-	hspi_clock(0, 0);	// force 80 MHz SCK
+	// Lengthen SSEL (setup and hold)
+	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_CS_SETUP|SPI_CS_HOLD);
+	// Disable Flash mode
+	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_FLASH_MODE);
 
-	// code present in Espressif library, not sure what it does:
-	// SET_PERI_REG_MASK(SPI_USER(spi_no), SPI_CS_SETUP|SPI_CS_HOLD|SPI_USR_COMMAND);
-	// CLEAR_PERI_REG_MASK(SPI_USER(spi_no), SPI_FLASH_MODE);
-
+// These are set by the transaction function, but not by the simple data transmission functions
 	hspi_enable_data_phase;
 	hspi_disable_addr_phase;
 	hspi_disable_dummy_phase;
@@ -46,25 +45,26 @@ void hspi_init(void)
 	hspi_rx_byte_order_L_to_H;	// this is the default order, by the way
 }
 
-/*
- * Clock predivider takes the 80 MHz system clock and divides it, feeding
- * the SCK clock generator. "cntdiv" defines the period of SCK in predivided
- * clock cycles.
- *
- * Note that cntdiv is actually coded on 6 bits, limiting its value to the range 1..64)
- */
-void hspi_clock(uint16 prediv, uint8 cntdiv)
+// SCK will be 80 MHz if prediv is 0, otherwise it'll be 40 MHz / prediv
+void hspi_clock(uint16 prediv)
 {
-	if((prediv==0)|(cntdiv==0))
+	if (prediv==0)
+	{
+		hspi_enable_80Mhz;
 		WRITE_PERI_REG(SPI_CLOCK(HSPI), SPI_CLK_EQU_SYSCLK);
+	}
 	else
+	{
+		hspi_enable_prediv;
 		WRITE_PERI_REG(SPI_CLOCK(HSPI),
 		   (((prediv - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
-		   (((cntdiv - 1) & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
+		   ((1 & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
 		   ((0 & SPI_CLKCNT_H) << SPI_CLKCNT_H_S) |  // SCLK high for zero cycle ??? => tried 1, nothing works.
-		   (((cntdiv - 1) & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for the whole cycle...
+		   ((1 & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for the whole cycle...
+	}
 
 	// it appears the "high" level must always be set to a length of zero, otherwise there's no SCK output...
+	// this function implements a 50% duty cycle on SCK. Frequency can be adjusted via the predivider only
 }
 
 // Send the same 16-bit value multiple times.
@@ -75,9 +75,8 @@ void hspi_send_uint16_r(uint16_t data, int32_t repeats)
 	uint32_t bts;	// bytes to send
 	uint32_t word = data << 16 | data;	// SPI data registers are 32-bit : send two words at once !
 
-	while (repeats > 0)
+	while (repeats > 0)		// outer loop for transfers up to 512 bits
 	{
-		// outer loop for up to 512-bit transfers
 		hspi_wait_ready();	// wait for previous transfer to complete
 
 		// determine how many bytes will be sent during this iteration
@@ -86,13 +85,10 @@ void hspi_send_uint16_r(uint16_t data, int32_t repeats)
 		else
 			bts = repeats << 1;			// cheap multiply by two
 
-		// now fill the FIFO and update "repeats"
 		i = 0;	// FIFO index
-		while ((repeats > 0) && (i < SPIFIFOSIZE))
+		while ((repeats > 0) && (i < SPIFIFOSIZE))    // now fill the FIFO and update "repeats"
 		{
-			// inner loop to fill the HSPI FIFO (up to SPIFIFOSIZE words of 32 bits)
-			repeats -= 2;	// because I'm sending two words at once
-			// spi_fifo[i++] = word;
+			repeats -= 2;	// because I'm sending two 16-bit words at once
 			HSPI_FIFO[i++] = word;
 		}
 
@@ -103,13 +99,12 @@ void hspi_send_uint16_r(uint16_t data, int32_t repeats)
 }
 
 // Send up to SPIFIFOSIZE x 4 = 64 bytes. Warning : sending more will overflow the HSPI
+// parameters are : pointer to a byte array, and number of bytes to send
 void hspi_send_data(const uint8_t * data, int8_t datasize)
 {
-	// recast data pointer from 8 bits to 32 bits (the width of the HSPI data registers)
-	uint32_t *_data = (uint32_t*)data;
+	uint32_t *_data = (uint32_t*)data;	// recast data pointer from 8 bits to 32 bits (the width of the HSPI data registers)
 
-	//hspi_prepare_tx(datasize); :
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((datasize << 3) - 1) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
+	WRITE_PERI_REG(SPI_USER1(HSPI), (((datasize << 3) - 1) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	// hspi_prepare_tx(datasize);
 
 	uint8_t i = 0;
 
@@ -117,9 +112,6 @@ void hspi_send_data(const uint8_t * data, int8_t datasize)
 	{
 		HSPI_FIFO[i++] = *_data++;
 		datasize -= 4;	// because I'm sending 4 bytes at a time
-
-		// If FIFO overflow is an issue (shouldn't be !)
-		// if (i == SPIFIFOSIZE) break;	// FIFO overflow protection
 	}
 
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
@@ -130,43 +122,26 @@ inline void hspi_wait_ready(void)
 	while (READ_PERI_REG(SPI_CMD(HSPI))&SPI_USR);
 }
 
+// Functionally equivalent to the hspi_wait_ready function: (use to make your own "while" loops
 #define hspi_busy READ_PERI_REG(SPI_CMD(HSPI))&SPI_USR
-
-
-inline void hspi_prepare_tx(uint32_t bytecount)
-{
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((bytecount << 3) - 1) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
-}
-
-
-inline void hspi_start_tx()
-{
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // send
-}
-
 
 inline void hspi_send_uint8(uint8_t data)
 {
-	// hspi_prepare_tx(1);
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 7) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
+	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 7) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	// hspi_prepare_tx(1);
 	*HSPI_FIFO = data;
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
 
 inline void hspi_send_uint16(uint16_t data)
 {
-	//hspi_prepare_tx(2);
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 15) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
-
+	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 15) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	//hspi_prepare_tx(2);
 	*HSPI_FIFO = data;
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
 
 inline void hspi_send_uint32(uint32_t data)
 {
-	// hspi_prepare_tx(4);
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 31) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
-
+	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 31) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	// hspi_prepare_tx(4);
 	*HSPI_FIFO = data;
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
@@ -180,8 +155,6 @@ inline void hspi_send_uint32(uint32_t data)
 inline void hspi_init_gpio (void)
 {
 	// Set pin muxing for HSPI
-	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x105);
-	//WRITE_PERI_REG(PERIPHS_IO_MUX, 0x305); // For 80 MHz operation (ignores any clock divider settings)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); //GPIO12 is HSPI MISO pin (Master Data In)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); //GPIO13 is HSPI MOSI pin (Master Data Out)
 	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); //GPIO14 is HSPI CLK pin (Clock)

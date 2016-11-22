@@ -79,6 +79,7 @@ void hspi_send_uint16_r(const uint16_t data, int32_t repeats);
 // NEFASTOR : Experimental : the following macros operate on undocumented fields
 #define hspi_enable_ck_out_edge		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_CK_OUT_EDGE)
 #define hspi_disable_ck_out_edge 	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_CK_OUT_EDGE)
+// (they appear to have no effect)
 
 // also do SPI_CS_SETUP, SPI_CS_HOLD, SPI_FLASH_MODE
 
@@ -86,7 +87,7 @@ void hspi_mode(uint8 spi_cpha,uint8 spi_cpol);
 
 inline void hspi_init_gpio (void);
 
-void hspi_clock(uint16 prediv, uint8 cntdiv);
+void hspi_clock(uint16 prediv);
 
 // stolen from spi.c and mutated into an HSPI-only function.
 // I need this function in order to implement SPI reads and, of course, all transaction formats
