@@ -61,8 +61,9 @@ void toggle_led ()
 void spi_transaction ()
 {
 	// set the clock
-	mpu9250_hspi_clock_upgrade(predivider, sck_up, sck_down);
-	//hspi_clock(predivider, sck_up + sck_down);
+	//mpu9250_hspi_clock_upgrade(predivider, sck_up, sck_down);
+	hspi_clock(predivider); // , sck_up + sck_down);
+	//hspi_clock(predivider, 0);	// test : force cntdiv to 1 fails: let's try 2 => works
 	// give it a few microseconds to settle
 	os_delay_us (100);
 	// perform the transaction
@@ -135,8 +136,8 @@ void task_gui_setup(void *pvParameters)
 
 		// Application (firmware) specific GUI setup operations:
 		unity_setup_int (&predivider,	"Prediv", 0, 1000,	TILE_1); // GUI_FLAGS(0,0,4,3,0,0,0));
-		unity_setup_int (&sck_up,				"SCK up", 0, 63,			TILE_2); // GUI_FLAGS(4,0,4,3,0,0,0));
-		unity_setup_int (&sck_down,				"SCK down", 0, 63,			TILE_3); // GUI_FLAGS(4,0,4,3,0,0,0));
+		//unity_setup_int (&sck_up,				"SCK up", 0, 63,			TILE_2); // GUI_FLAGS(4,0,4,3,0,0,0));
+		//unity_setup_int (&sck_down,				"SCK down", 0, 63,			TILE_3); // GUI_FLAGS(4,0,4,3,0,0,0));
 		unity_setup_int (&spi_address, "Register", -300, 300,			TILE_4); // GUI_FLAGS(0,3,4,3,0,0,0));
 		unity_setup_int (&spi_data_in,	"Value", 0, 1,	TILE_5);
 

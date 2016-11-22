@@ -16,8 +16,6 @@
 
 void mpu9250_init();
 
-void mpu9250_hspi_clock(uint16 prediv, uint8 cntdiv);
-
 uint8 mpu9250_read (uint8 addr);
 
 
