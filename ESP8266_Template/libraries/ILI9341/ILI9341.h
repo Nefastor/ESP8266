@@ -123,4 +123,7 @@
 
   void setTextColor (uint16_t newColor);
 
+
+  void hspi_send_uint16_r(const uint16_t data, int32_t repeats);
+
 #endif

@@ -28,7 +28,7 @@ int16_t		_height = ILI9341_TFTHEIGHT;	// Initialized for rotation = 0
 uint16_t	textcolor = 0xFFFF;				// White on black text
 uint16_t	textbgcolor = 0x0000;
 
- // Transmit 16 bits. Typically used to send pixel data (16-bit colors)
+// Transmit 16 bits. Typically used to send pixel data (16-bit colors)
 inline void transmitData(uint16_t data)
 {
 	// hspi_wait_ready();
@@ -38,27 +38,14 @@ inline void transmitData(uint16_t data)
 	hspi_tx16(data);
 }
 
-// actually this isn't used anymore
-/*
-inline void transmitCmdData(uint8_t cmd, uint32_t data)
-{
-	//hspi_wait_ready();
-	TFT_DC_COMMAND;
-	hspi_send_uint8(cmd);
-	//hspi_wait_ready();
-	TFT_DC_DATA;
-	hspi_send_uint32(data);
-}*/
-
 inline void transmitCmd(uint8_t cmd)
 {
-	// first wait may be unnecessary because shorter than a function call start
-	//hspi_wait_ready();
+	//hspi_wait_ready();	// first wait may be unnecessary because shorter than a function call start
 	TFT_DC_COMMAND;
 	//hspi_send_uint8(cmd);
 	hspi_tx8(cmd);
 	hspi_wait_ready();		// this one is vital
-	TFT_DC_DATA;	// put it there because there may be multiple data transfers next
+	TFT_DC_DATA;	// I put this there because there may be multiple data transfers next
 }
 
 inline void setAddrWindow (uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
@@ -84,6 +71,7 @@ inline void setAddrWindow (uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 	transmitCmd (ILI9341_RAMWR); // write to RAM : 16-bit pixel colors can be written right after this function returns
 }
 
+// Send a command byte followed by 1 to 64 data bytes
 void transmitCmdDataBuf (uint8_t cmd, const uint8_t *data, uint8_t numDataByte)
 {
 	TFT_DC_COMMAND;
@@ -99,6 +87,9 @@ ICACHE_FLASH_ATTR void begin (void)
 
 	// Setup communication using HSPI
 	hspi_init();
+
+	// Setup SPI bit rate :
+	hspi_clock(4); //0 for 80 MHz, anything else is 40 MHz / N, where N is less than 8192.
 
 	// Initialize the GPIO pin that will drive the ILI9341's command / data signal
 	TFT_DC_INIT;
@@ -512,6 +503,38 @@ void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
 
 	// possible optimization : this code overwrites the corner pixels.
 	// solution : shorten the lines.
+}
+
+// SPI acceleration function (makes use of the ESP8266's 512-bit SPI buffer)
+// Send the same 16-bit value multiple times.
+// Useful for filling pixels with the same color on 16bpp displays.
+void hspi_send_uint16_r(uint16_t data, int32_t repeats)
+{
+	uint32_t i;
+	uint32_t bts;	// bytes to send
+	uint32_t word = data << 16 | data;	// SPI data registers are 32-bit : send two words at once !
+
+	while (repeats > 0)		// outer loop for transfers up to 512 bits
+	{
+		hspi_wait_ready();	// wait for previous transfer to complete
+
+		// determine how many bytes will be sent during this iteration
+		if (repeats >= 32)	// 512 bits = 32 x 16 bit words. Sending 32 or more means a full transfer right now
+			bts = SPIFIFOSIZE << 2;		// cheap multiply by four
+		else
+			bts = repeats << 1;			// cheap multiply by two
+
+		i = 0;	// FIFO index
+		while ((repeats > 0) && (i < SPIFIFOSIZE))    // now fill the FIFO and update "repeats"
+		{
+			repeats -= 2;	// because I'm sending two 16-bit words at once
+			HSPI_FIFO[i++] = word;
+		}
+
+		// perform the transfer : (hspi_prepare_tx(bts)) and send :
+		WRITE_PERI_REG(SPI_USER1(HSPI), (((bts << 3) - 1) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
+		SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // send
+	}
 }
 
 /* Nefastor : TO DO : Bresenham line algo
