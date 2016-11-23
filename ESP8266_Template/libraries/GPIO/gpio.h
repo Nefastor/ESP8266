@@ -111,7 +111,7 @@ typedef enum {
 } GPIO_Pullup_IF;
 
 typedef struct {
-    uint16           GPIO_Pin;      /**< GPIO pin */
+    uint16           GPIO_Pin;      /**< GPIO pin */	// Nefastor: seems to require a MASK, not a pin number
     GPIOMode_TypeDef GPIO_Mode;     /**< GPIO mode */
     GPIO_Pullup_IF   GPIO_Pullup;   /**< GPIO pullup */
     GPIO_INT_TYPE    GPIO_IntrType; /**< GPIO interrupt type */

@@ -4,6 +4,9 @@
 
 #include "hspi.h"
 
+// new : let's try to use MetalPhreak's SPI driver instead of hpsi.c
+//#include "spi.h"
+
 
 #define ILI9341_TFTWIDTH  240
 #define ILI9341_TFTHEIGHT 320
@@ -119,5 +122,8 @@
   void drawRect(int16_t x, int16_t y, int16_t w, int16_t h,	uint16_t color);
 
   void setTextColor (uint16_t newColor);
+
+
+  void hspi_send_uint16_r(const uint16_t data, int32_t repeats);
 
 #endif
