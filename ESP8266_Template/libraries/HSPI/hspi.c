@@ -45,6 +45,28 @@ void hspi_init(void)
 	hspi_rx_byte_order_L_to_H;	// this is the default order, by the way
 }
 
+inline void hspi_init_gpio (void)
+{
+	// Set pin muxing for HSPI
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); // GPIO12 is HSPI MISO pin (Master Data In)
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); // GPIO13 is HSPI MOSI pin (Master Data Out)
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); // GPIO14 is HSPI CLK pin (Clock)
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); // GPIO15 is HSPI CS pin (Chip Select / Slave Select)
+}
+
+void hspi_mode(uint8 spi_cpha, uint8 spi_cpol)
+{
+	if(spi_cpha)
+		CLEAR_PERI_REG_MASK(SPI_USER(1), SPI_CK_OUT_EDGE);
+	else
+		SET_PERI_REG_MASK(SPI_USER(1), SPI_CK_OUT_EDGE);
+
+	if (spi_cpol)
+		SET_PERI_REG_MASK(SPI_PIN(1), SPI_IDLE_EDGE);
+	else
+		CLEAR_PERI_REG_MASK(SPI_PIN(1), SPI_IDLE_EDGE);
+}
+
 // SCK will be 80 MHz if prediv is 0, otherwise it'll be 40 MHz / prediv
 void hspi_clock(uint16 prediv)
 {
@@ -67,35 +89,12 @@ void hspi_clock(uint16 prediv)
 	// this function implements a 50% duty cycle on SCK. Frequency can be adjusted via the predivider only
 }
 
-// Send the same 16-bit value multiple times.
-// Useful for filling pixels with the same color on 16bpp displays.
-void hspi_send_uint16_r(uint16_t data, int32_t repeats)
+// Functionally equivalent to the hspi_wait_ready function: (use to make your own "while" loops
+#define hspi_busy READ_PERI_REG(SPI_CMD(HSPI))&SPI_USR
+
+inline void hspi_wait_ready(void)
 {
-	uint32_t i;
-	uint32_t bts;	// bytes to send
-	uint32_t word = data << 16 | data;	// SPI data registers are 32-bit : send two words at once !
-
-	while (repeats > 0)		// outer loop for transfers up to 512 bits
-	{
-		hspi_wait_ready();	// wait for previous transfer to complete
-
-		// determine how many bytes will be sent during this iteration
-		if (repeats >= 32)	// 512 bits = 32 x 16 bit words. Sending 32 or more means a full transfer right now
-			bts = SPIFIFOSIZE << 2;		// cheap multiply by four
-		else
-			bts = repeats << 1;			// cheap multiply by two
-
-		i = 0;	// FIFO index
-		while ((repeats > 0) && (i < SPIFIFOSIZE))    // now fill the FIFO and update "repeats"
-		{
-			repeats -= 2;	// because I'm sending two 16-bit words at once
-			HSPI_FIFO[i++] = word;
-		}
-
-		// perform the transfer : (hspi_prepare_tx(bts)) and send :
-		WRITE_PERI_REG(SPI_USER1(HSPI), (((bts << 3) - 1) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
-		SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // send
-	}
+	while (hspi_busy);
 }
 
 // Send up to SPIFIFOSIZE x 4 = 64 bytes. Warning : sending more will overflow the HSPI
@@ -117,13 +116,6 @@ void hspi_send_data(const uint8_t * data, int8_t datasize)
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
 
-inline void hspi_wait_ready(void)
-{
-	while (READ_PERI_REG(SPI_CMD(HSPI))&SPI_USR);
-}
-
-// Functionally equivalent to the hspi_wait_ready function: (use to make your own "while" loops
-#define hspi_busy READ_PERI_REG(SPI_CMD(HSPI))&SPI_USR
 
 inline void hspi_send_uint8(uint8_t data)
 {
@@ -146,46 +138,6 @@ inline void hspi_send_uint32(uint32_t data)
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
 
-/* NEFASTOR - IN PROGRESS :
- *
- * I'm going to implement functions similar to spi.c for setting up the HSPI
- *
- */
-
-inline void hspi_init_gpio (void)
-{
-	// Set pin muxing for HSPI
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); //GPIO12 is HSPI MISO pin (Master Data In)
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); //GPIO13 is HSPI MOSI pin (Master Data Out)
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); //GPIO14 is HSPI CLK pin (Clock)
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); //GPIO15 is HSPI CS pin (Chip Select / Slave Select)
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
- //
-// Function Name: spi_mode
-//   Description: Configures SPI mode parameters for clock edge and clock polarity.
-//    Parameters: spi_no - SPI (0) or HSPI (1)
-//				  spi_cpha - (0) Data is valid on clock leading edge
-//				             (1) Data is valid on clock trailing edge
-//				  spi_cpol - (0) Clock is low when inactive
-//				             (1) Clock is high when inactive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void hspi_mode(uint8 spi_cpha,uint8 spi_cpol)
-{
-	if(spi_cpha)
-		CLEAR_PERI_REG_MASK(SPI_USER(1), SPI_CK_OUT_EDGE);
-	else
-		SET_PERI_REG_MASK(SPI_USER(1), SPI_CK_OUT_EDGE);
-
-	if (spi_cpol)
-		SET_PERI_REG_MASK(SPI_PIN(1), SPI_IDLE_EDGE);
-	else
-		CLEAR_PERI_REG_MASK(SPI_PIN(1), SPI_IDLE_EDGE);
-}
 
 
 /*
@@ -199,14 +151,16 @@ void hspi_mode(uint8 spi_cpha,uint8 spi_cpol)
 // STOLEN BY NEFASTOR and adapted to / optimized for the HSPI
 // Function Name: hspi_transaction
 //   Description: HSPI transaction function
-//    Parameters:
-//				  cmd_bits - command phase : number of bits to transmit
+//    Parameters: cmd_bits - command phase : number of bits to transmit (0 disables this phase)
 //				  cmd_data - command phase : the command to transmit
-//				  addr_bits - address phase : number of bits to transmit
+//				  addr_bits - address phase : number of bits to transmit (0 disables this phase)
 //				  addr_data - address phase : the address to transmit
-//				  dout_bits - transmit phase : number of bits to transmit
+//				  dout_bits - transmit phase : number of bits to transmit (0 disables this phase)
 //				  dout_data - transmit phase : the data to transmit
-//				  din_bits - receive phase : number of bits to receive
+//				  din_bits - receive phase : number of bits to receive (0 disables this phase)
+//				  dummy_bits - number of dummy bits to insert (0 disables this phase)
+//
+// 				  note that the address, dout and din phases can have up to 32 bits each
 //
 //		 Returns: data received - uint32 containing data read in (only if din_bits was not zero)
 //				  0 - something went wrong (or data received was 0)
@@ -216,45 +170,46 @@ void hspi_mode(uint8 spi_cpha,uint8 spi_cpol)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint32 addr_data, uint32 dout_bits, uint32 dout_data,
-				uint32 din_bits, uint32 dummy_bits){
-
-
+uint32 hspi_transaction (uint8 cmd_bits, uint16 cmd_data,
+						uint32 addr_bits, uint32 addr_data,
+						uint32 dout_bits, uint32 dout_data,
+						uint32 din_bits, uint32 dummy_bits)
+{
 	hspi_wait_ready (); //wait for SPI to be ready
 
-	//disable MOSI, MISO, ADDR, COMMAND, DUMMY in case previously set.
+	//disable all phases of the transaction in case they were previously set
 	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI|SPI_USR_MISO|SPI_USR_COMMAND|SPI_USR_ADDR|SPI_USR_DUMMY);
 
-	// Setup bit lengths for each phases of the transaction
-	WRITE_PERI_REG(SPI_USER1(HSPI), ((addr_bits-1)&SPI_USR_ADDR_BITLEN)<<SPI_USR_ADDR_BITLEN_S | //Number of bits in Address
-									  ((dout_bits-1)&SPI_USR_MOSI_BITLEN)<<SPI_USR_MOSI_BITLEN_S | //Number of bits to Send
-									  ((din_bits-1)&SPI_USR_MISO_BITLEN)<<SPI_USR_MISO_BITLEN_S |  //Number of bits to receive
-									  ((dummy_bits-1)&SPI_USR_DUMMY_CYCLELEN)<<SPI_USR_DUMMY_CYCLELEN_S); //Number of Dummy bits to insert
+	// Setup the number of bits for each phase of the SPI transaction
+	WRITE_PERI_REG(SPI_USER1(HSPI), ((addr_bits-1)&SPI_USR_ADDR_BITLEN)<<SPI_USR_ADDR_BITLEN_S |   			// Address
+									  ((dout_bits-1)&SPI_USR_MOSI_BITLEN)<<SPI_USR_MOSI_BITLEN_S | 			// Data Out
+									  ((din_bits-1)&SPI_USR_MISO_BITLEN)<<SPI_USR_MISO_BITLEN_S |  			// Data In
+									  ((dummy_bits-1)&SPI_USR_DUMMY_CYCLELEN)<<SPI_USR_DUMMY_CYCLELEN_S); 	// Dummy bits
 
-	// Enable SPI transaction phases that require no data
+	// Enable SPI transaction phases that send no data
 	if(din_bits) {SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MISO);}
 	if(dummy_bits) {SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_DUMMY);}
 
 	// Setup the command phase
 	if(cmd_bits)
 	{
-		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_COMMAND); //enable COMMAND function in SPI module
-		uint16 command = cmd_data << (16-cmd_bits); //align command data to high bits
-		command = ((command>>8)&0xff) | ((command<<8)&0xff00); //swap byte order
+		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_COMMAND); // enable the command phase
+		uint16 command = cmd_data << (16-cmd_bits); 		// align command data to the high bits
+		command = ((command>>8)&0xff) | ((command<<8)&0xff00); //swap bytes
 		WRITE_PERI_REG(SPI_USER2(HSPI), ((((cmd_bits-1)&SPI_USR_COMMAND_BITLEN)<<SPI_USR_COMMAND_BITLEN_S) | command&SPI_USR_COMMAND_VALUE));
 	}
 
 	// Setup the address phase
 	if(addr_bits)
 	{
-		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_ADDR); //enable ADDRess function in SPI module
-		WRITE_PERI_REG(SPI_ADDR(HSPI), addr_data<<(32-addr_bits)); //align address data to high bits
+		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_ADDR); // enable the address phase
+		WRITE_PERI_REG(SPI_ADDR(HSPI), addr_data<<(32-addr_bits)); // align address data to the high bits
 	}
 
 	// Setup the transmission (MOSI) phase
 	if(dout_bits)
 	{
-		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI); //enable MOSI function in SPI module
+		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI); // enable the transmission phase
 
 		//copy data to W0
 		if (READ_PERI_REG(SPI_USER(HSPI))&SPI_WR_BYTE_ORDER)
@@ -299,7 +254,7 @@ uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint3
 		}
 
 		// return 0; //something went wrong
-		return 0xDEADBEEF; //something went wrong
+		return 0xDEADBEEF; //something went wrong ==> THIS CODE IS UNREACHABLE
 	}
 
 	return 1; //Transaction completed successfully
