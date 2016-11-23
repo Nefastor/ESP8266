@@ -10,13 +10,11 @@
 
 #include <c_types.h>
 
-
-
-
-
 void mpu9250_init();
 
 uint8 mpu9250_read (uint8 addr);
+
+void mpu9250_read_burst (uint32 addr, uint32 din_bits);
 
 
 ////////////// I2C Only /////////////////////

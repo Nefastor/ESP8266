@@ -30,6 +30,9 @@
 #include "mpu9250.h"
 #include "gpio.h"				// To operate the LED
 
+// EXPERIMENTAL
+#include "hspi.h"
+
 // GPIO Constants, see pin_mux_register.h (SDK) included through esp_common.h
 #define LED_GPIO 		2		// ESP8266 GPIO pin number, NOT module D pin number
 #define LED_GPIO_MUX	PERIPHS_IO_MUX_GPIO2_U
@@ -58,16 +61,33 @@ void toggle_led ()
 	GPIO_OUTPUT_SET (LED_GPIO, led);
 }
 
+// Test of sensor burst read
 void spi_transaction ()
 {
-	// set the clock
-	//mpu9250_hspi_clock_upgrade(predivider, sck_up, sck_down);
-	hspi_clock(predivider); // , sck_up + sck_down);
-	//hspi_clock(predivider, 0);	// test : force cntdiv to 1 fails: let's try 2 => works
-	// give it a few microseconds to settle
-	os_delay_us (100);
+
+	// Start by reading 16 bits from registers 59-60
+    mpu9250_read160 (59);
+	// mpu9250_read_burst (59, 160); // Read 160 bits starting from register 59
+
+    //spi_data_in = HSPI_FIFO_16[2]; // appears to be the temperature
+    // Note : with these 16 bit pointers the array indices are "swapped".
+    spi_data_in = HSPI_FIFO_16[3]; // appears to be Acc_Z
+
+    //spi_data_in = HSPI_FIFO[0] >> 16;  // should be Acc_X
+    //spi_data_in = HSPI_FIFO[0] & 0xffff;  // should be Acc_Y
+    //spi_data_in = HSPI_FIFO[1] >> 16;  // should be Acc_Z
+	//spi_data_in = HSPI_FIFO[1] & 0xffff; // appears to be the temperature
+
+	// update the remote GUI (nothing : currently done by a FreeRTOS task)
+}
+
+void spi_transaction_who_am_I ()
+{
+	hspi_clock(predivider);		// set the clock
 	// perform the transaction
-	spi_data_in = (int) hspi_transaction(0,0,0,0,8,spi_address | 0x80,8,0); // read / dummy
+	//spi_data_in = (int) hspi_transaction(0,0,0,0,8,spi_address | 0x80,8,0); // read / dummy
+	//spi_data_in = (int) hspi_transaction(0,0,8,spi_address | 0x80,0,0,8,0); // also works
+	spi_data_in = (int) hspi_transaction(8,spi_address | 0x80,0,0,0,0,8,0); // also works
 	// update the remote GUI (nothing : currently done by a FreeRTOS task)
 }
 
