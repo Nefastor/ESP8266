@@ -27,7 +27,6 @@
 
 #include "gpio.h"
 
-// Nefastor : original function, very poorly coded.
 void gpio_config(GPIO_ConfigTypeDef *pGPIOConfig)
 {
     uint16 gpio_pin_mask = pGPIOConfig->GPIO_Pin;
