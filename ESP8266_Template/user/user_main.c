@@ -31,6 +31,7 @@
 #include "freertos/task.h"
 
 #include "gpio.h"				// GPIO library
+#include "hspi.h"
 
 // GPIO Constants, see pin_mux_register.h (SDK) included through esp_common.h
 #define LED_GPIO 		2		// ESP8266 GPIO pin number, NOT module D pin number
@@ -72,6 +73,16 @@ user_init(void)
 	PIN_FUNC_SELECT(LED_GPIO_MUX, LED_GPIO_FUNC);
 
 	// Tell FreeRTOS to start the LED blink task
-    xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
+    // xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
+
+	hspi_init();
+	hspi_mode(1, 0);
+	hspi_clock (40);	// 1 MHz SCK
+
+	// start frame, send one LED value, end frame
+	hspi_send_uint32 (0x00000000);
+	hspi_send_uint32 (0xF0606060);	// rather random
+	hspi_send_uint32 (0xF0404040);	// rather random
+	hspi_send_uint32 (0xFFFFFFFF);
 }
 
