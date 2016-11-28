@@ -46,8 +46,8 @@ uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint3
 // The HSPI has a FIFO of 16 registers. This macro defines a pointer so they can be accessed as an array
 #define HSPI_FIFO ((uint32_t*) SPI_W0(HSPI))	// for use as an array in repeat transfer
 // Experimental : version for 16-bit access
-#define HSPI_FIFO_16 ((uint16_t*) SPI_W0(HSPI))	// for use as an array in repeat transfer
-
+// #define HSPI_FIFO_16 ((uint16_t*) SPI_W0(HSPI))	// for use as an array in repeat transfer
+#define HSPI_FIFO_16 ((int16_t*) SPI_W0(HSPI)) // making it signed
 
 
 /*

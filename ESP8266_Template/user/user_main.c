@@ -61,24 +61,24 @@ void toggle_led ()
 	GPIO_OUTPUT_SET (LED_GPIO, led);
 }
 
+extern float accel_data[3];
+extern float gyro_data[3];
+extern float mag_data[3];
+extern float temperature;
+
 // Test of sensor burst read
 void spi_transaction ()
 {
 
-	// Start by reading 16 bits from registers 59-60
-    mpu9250_read160 (59);
-	// mpu9250_read_burst (59, 160); // Read 160 bits starting from register 59
+	// Start by reading 160 bits from register 59
+	mpu9250_read_sensors ();
 
-    //spi_data_in = HSPI_FIFO_16[2]; // appears to be the temperature
     // Note : with these 16 bit pointers the array indices are "swapped".
-    spi_data_in = HSPI_FIFO_16[3]; // appears to be Acc_Z
+    // spi_data_in = HSPI_FIFO_16[3]; // Acc_Z
 
-    //spi_data_in = HSPI_FIFO[0] >> 16;  // should be Acc_X
-    //spi_data_in = HSPI_FIFO[0] & 0xffff;  // should be Acc_Y
-    //spi_data_in = HSPI_FIFO[1] >> 16;  // should be Acc_Z
-	//spi_data_in = HSPI_FIFO[1] & 0xffff; // appears to be the temperature
-
-	// update the remote GUI (nothing : currently done by a FreeRTOS task)
+    // Convert to standard units
+    mpu9250_convert ();
+    spi_data_in = (int) accel_data[0];
 }
 
 void spi_transaction_who_am_I ()
