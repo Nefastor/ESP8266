@@ -76,13 +76,22 @@ user_init(void)
     // xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
 
 	hspi_init();
+
+	hspi_tx_byte_order_H_to_L;
+	hspi_rx_byte_order_H_to_L;
+
 	hspi_mode(1, 0);
-	hspi_clock (40);	// 1 MHz SCK
+	hspi_clock (400);	// 0.1 MHz SCK
 
 	// start frame, send one LED value, end frame
+	hspi_wait_ready ();
 	hspi_send_uint32 (0x00000000);
+	hspi_wait_ready ();
 	hspi_send_uint32 (0xF0606060);	// rather random
+	hspi_wait_ready ();
 	hspi_send_uint32 (0xF0404040);	// rather random
+	hspi_wait_ready ();
 	hspi_send_uint32 (0xFFFFFFFF);
+	hspi_wait_ready ();
 }
 
