@@ -59,6 +59,63 @@ blink_task(void *pvParameters)
     }
 }
 
+
+
+// Function to set a specific LED, by index (all others will be turned off)
+
+uint32 kolor = 0x1;
+
+void LED (int i)
+{
+	// start the frame
+	hspi_wait_ready ();
+	hspi_send_uint32 (0x00000000);
+	// if necessary, turn off the LED's at the start of the strip
+	int k = i;
+	while (k--)
+	{
+		hspi_wait_ready ();
+		hspi_send_uint32 (0xF0000000);
+	}
+	// Turn on the desired LED
+	hspi_wait_ready ();
+	hspi_send_uint32 (0xF0001000);
+	//kolor++;
+	// Clean all other LED's
+	/*k = 24 - i;
+	while (k--)
+	{
+		hspi_wait_ready ();
+		hspi_send_uint32 (0xF0000000);
+	}*/
+	//hspi_send_uint32 (0xFFFFFFFF);
+	//hspi_wait_ready ();
+}
+
+void ICACHE_FLASH_ATTR
+rgb_task(void *pvParameters)
+{
+	int k = 0;
+	while (1)
+	{
+		LED(k);
+		k++;
+		if (k == 145) k = 0;
+		//os_delay_us (5000);
+	}
+	/*
+    uint8_t state = 0;		// LED index on the strip
+
+    while (1)
+    {
+    	LED(state);
+    	state++;
+    	if (state = 145) state = 0;
+    	vTaskDelay (20);						// FreeRTOS delay function
+    }
+    */
+}
+
 /******************************************************************************
  * FunctionName : user_init
  * Description  : entry point of user code, the user's "main" function
@@ -69,29 +126,117 @@ blink_task(void *pvParameters)
 void ICACHE_FLASH_ATTR
 user_init(void)
 {
+	// Kill the watchdog
+	system_soft_wdt_stop();	// blob API
+
 	// Multiplex the LED pin as GPIO
 	PIN_FUNC_SELECT(LED_GPIO_MUX, LED_GPIO_FUNC);
 
 	// Tell FreeRTOS to start the LED blink task
-    // xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
+    //xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
+    //while(1);
 
 	hspi_init();
+
+	// Specific implementation of the SCK setup that seems to solve the timing issue
+	// This may well be specific to the APA102 LED's
+	/******* WORKING CODE ************************************
+	hspi_enable_prediv;
+	WRITE_PERI_REG(SPI_CLOCK(HSPI),
+	   (((8 - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
+	   ((2 & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
+	   ((1 & SPI_CLKCNT_H) << SPI_CLKCNT_H_S) |  // SCLK high for zero cycle ??? => tried 1, nothing works.
+	   ((2 & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for the whole cycle...
+	***********************************/
+
+	/* MORE RELIABLE TIMINGS
+	hspi_enable_prediv;
+	WRITE_PERI_REG(SPI_CLOCK(HSPI),
+	   (((8 - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
+	   ((2 & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
+	   ((0 & SPI_CLKCNT_H) << SPI_CLKCNT_H_S) |  // SCLK high for zero cycle ??? => tried 1, nothing works.
+	   ((1 & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for the whole cycle...
+*/
+
+	hspi_enable_prediv;
+	WRITE_PERI_REG(SPI_CLOCK(HSPI),
+	   (((2 - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
+	   ((3 & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
+	   ((0 & SPI_CLKCNT_H) << SPI_CLKCNT_H_S) |  // SCLK high for zero cycle ??? => tried 1, nothing works.
+	   ((3 & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for the whole cycle...
+
 
 	hspi_tx_byte_order_H_to_L;
 	hspi_rx_byte_order_H_to_L;
 
 	hspi_mode(1, 0);
-	hspi_clock (400);	// 0.1 MHz SCK
+	//hspi_clock (8);	// 1 MHz SCK
+
+	xTaskCreate(rgb_task, "rgb_task", 256, NULL, 2, NULL);
+	while (1);
 
 	// start frame, send one LED value, end frame
+	//hspi_wait_ready ();
+	//hspi_send_uint32 (0xFFFFFFFF);
+	/*
 	hspi_wait_ready ();
-	hspi_send_uint32 (0x00000000);
+	hspi_send_uint32 (0x00000001);
 	hspi_wait_ready ();
-	hspi_send_uint32 (0xF0606060);	// rather random
+	hspi_send_uint32 (0xF0000011);	// rather random
 	hspi_wait_ready ();
-	hspi_send_uint32 (0xF0404040);	// rather random
+	hspi_send_uint32 (0xF0001001);	// rather random
 	hspi_wait_ready ();
-	hspi_send_uint32 (0xFFFFFFFF);
+	hspi_send_uint32 (0xF0100001);	// rather random
 	hspi_wait_ready ();
+	//hspi_send_uint32 (0xFFFFFFFF);
+	hspi_wait_ready ();
+	*/
+
+	int k = 0;
+	while (1)
+	{
+		LED(k);
+		k++;
+		if (k == 145) k = 0;
+		//os_delay_us (5000);
+	}
+
+	while (1)
+	{
+		hspi_wait_ready ();
+		hspi_send_uint32 (0x00000000);
+		hspi_wait_ready ();
+		hspi_send_uint32 (0xF0000010);	// rather random
+		hspi_wait_ready ();
+		hspi_send_uint32 (0xF0001000);	// rather random
+		hspi_wait_ready ();
+		hspi_send_uint32 (0xF0100000);	// rather random
+		hspi_wait_ready ();
+		//hspi_send_uint32 (0xFFFFFFFF);
+		hspi_wait_ready ();
+
+		os_delay_us (50000);
+		os_delay_us (50000);
+		os_delay_us (50000);
+		os_delay_us (50000);
+
+		hspi_wait_ready ();
+		hspi_send_uint32 (0x00000000);
+		hspi_wait_ready ();
+		hspi_send_uint32 (0xF0000000);	// rather random
+		hspi_wait_ready ();
+		hspi_send_uint32 (0xF0000000);	// rather random
+		hspi_wait_ready ();
+		hspi_send_uint32 (0xF0000000);	// rather random
+		hspi_wait_ready ();
+		//hspi_send_uint32 (0xFFFFFFFF);
+		hspi_wait_ready ();
+
+		os_delay_us (50000);
+		os_delay_us (50000);
+		os_delay_us (50000);
+		os_delay_us (50000);
+	}
+
 }
 
