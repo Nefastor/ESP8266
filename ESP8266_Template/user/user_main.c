@@ -116,6 +116,90 @@ rgb_task(void *pvParameters)
     */
 }
 
+void ICACHE_FLASH_ATTR
+counter_task(void *pvParameters)
+{
+	// MAX7219 : can't be written to using HSPI.
+		uint8 k = 0;
+		uint8 digits[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+		hspi_wait_ready ();
+		hspi_send_uint16 (0x0C01);	// exit shutdown mode
+		hspi_wait_ready ();
+		hspi_send_uint16 (0x0A0A);	// set brightness medium high
+		hspi_wait_ready ();
+		hspi_send_uint16 (0x0B07);	// scan all digits
+		hspi_wait_ready ();
+		hspi_send_uint16 (0x09FF);	// BCD decoding
+		hspi_wait_ready ();
+		while (1)
+		{
+			hspi_send_uint16 (0x0100 | digits[0]);	// set first digit segments
+			hspi_wait_ready ();
+			hspi_send_uint16 (0x0200 | digits[1]);	// set first digit segments
+			hspi_wait_ready ();
+			hspi_send_uint16 (0x0300 | digits[2]);	// set first digit segments
+			hspi_wait_ready ();
+			hspi_send_uint16 (0x0400 | digits[3]);
+			hspi_wait_ready ();
+			hspi_send_uint16 (0x0500 | digits[4]);
+			hspi_wait_ready ();
+			hspi_send_uint16 (0x0600 | digits[5]);
+			hspi_wait_ready ();
+			hspi_send_uint16 (0x0700 | digits[6]);
+			hspi_wait_ready ();
+			hspi_send_uint16 (0x0800 | digits[7]);
+			hspi_wait_ready ();
+			//os_delay_us (50000);
+			//os_delay_us (50000);
+			//os_delay_us (50000);
+			//os_delay_us (50000);
+			//k++;
+			//if (k == 10) k = 0;
+			// Counter increment
+			digits[0]++;
+			if (digits[0] == 10)
+			{
+				digits[0] = 0;
+				digits[1]++;
+			}
+			if (digits[1] == 10)
+			{
+				digits[1] = 0;
+				digits[2]++;
+			}
+			if (digits[2] == 10)
+			{
+				digits[2] = 0;
+				digits[3]++;
+			}
+			if (digits[3] == 10)
+			{
+				digits[3] = 0;
+				digits[4]++;
+			}
+			if (digits[4] == 10)
+			{
+				digits[4] = 0;
+				digits[5]++;
+			}
+			if (digits[5] == 10)
+			{
+				digits[5] = 0;
+				digits[6]++;
+			}
+			if (digits[6] == 10)
+			{
+				digits[7] = 0;
+				digits[7]++;
+			}
+			if (digits[7] == 10)
+			{
+				for (k = 0; k<7; k++) digits[k] = 0;
+			}
+		}
+
+}
+
 /******************************************************************************
  * FunctionName : user_init
  * Description  : entry point of user code, the user's "main" function
@@ -149,31 +233,32 @@ user_init(void)
 	   ((2 & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for the whole cycle...
 	***********************************/
 
-	/* MORE RELIABLE TIMINGS
+	// MORE RELIABLE TIMINGS
+	/*
 	hspi_enable_prediv;
 	WRITE_PERI_REG(SPI_CLOCK(HSPI),
-	   (((8 - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
+	   (((400 - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
 	   ((2 & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
 	   ((0 & SPI_CLKCNT_H) << SPI_CLKCNT_H_S) |  // SCLK high for zero cycle ??? => tried 1, nothing works.
 	   ((1 & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for the whole cycle...
 */
-
+/*
 	hspi_enable_prediv;
 	WRITE_PERI_REG(SPI_CLOCK(HSPI),
-	   (((2 - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
+	   (((400 - 1) & SPI_CLKDIV_PRE) << SPI_CLKDIV_PRE_S) |
 	   ((3 & SPI_CLKCNT_N) << SPI_CLKCNT_N_S) |  // SPI clock cycle
 	   ((0 & SPI_CLKCNT_H) << SPI_CLKCNT_H_S) |  // SCLK high for zero cycle ??? => tried 1, nothing works.
 	   ((3 & SPI_CLKCNT_L) << SPI_CLKCNT_L_S));  // SCLK low for the whole cycle...
-
+*/
 
 	hspi_tx_byte_order_H_to_L;
 	hspi_rx_byte_order_H_to_L;
 
 	hspi_mode(1, 0);
-	//hspi_clock (8);	// 1 MHz SCK
+	hspi_clock (40);	// .1 MHz SCK
 
-	xTaskCreate(rgb_task, "rgb_task", 256, NULL, 2, NULL);
-	while (1);
+	//xTaskCreate(rgb_task, "rgb_task", 256, NULL, 2, NULL);
+	//while (1);
 
 	// start frame, send one LED value, end frame
 	//hspi_wait_ready ();
@@ -192,6 +277,12 @@ user_init(void)
 	hspi_wait_ready ();
 	*/
 
+	xTaskCreate(counter_task, "counter_task", 256, NULL, 2, NULL);
+
+
+	while (1);
+
+
 	int k = 0;
 	while (1)
 	{
@@ -200,6 +291,7 @@ user_init(void)
 		if (k == 145) k = 0;
 		//os_delay_us (5000);
 	}
+
 
 	while (1)
 	{

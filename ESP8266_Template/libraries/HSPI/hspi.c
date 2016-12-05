@@ -127,7 +127,7 @@ inline void hspi_send_uint8(uint8_t data)
 inline void hspi_send_uint16(uint16_t data)
 {
 	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 15) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	//hspi_prepare_tx(2);
-	*HSPI_FIFO = data;
+	*HSPI_FIFO = (uint32_t) data << 16;
 	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
 
