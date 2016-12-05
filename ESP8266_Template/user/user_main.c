@@ -119,9 +119,10 @@ rgb_task(void *pvParameters)
 void ICACHE_FLASH_ATTR
 counter_task(void *pvParameters)
 {
-	// MAX7219 : can't be written to using HSPI.
+	// MAX7219 :
 		uint8 k = 0;
 		uint8 digits[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+		taskENTER_CRITICAL();
 		hspi_wait_ready ();
 		hspi_send_uint16 (0x0C01);	// exit shutdown mode
 		hspi_wait_ready ();
@@ -131,8 +132,10 @@ counter_task(void *pvParameters)
 		hspi_wait_ready ();
 		hspi_send_uint16 (0x09FF);	// BCD decoding
 		hspi_wait_ready ();
+		taskEXIT_CRITICAL();
 		while (1)
 		{
+			taskENTER_CRITICAL();
 			hspi_send_uint16 (0x0100 | digits[0]);	// set first digit segments
 			hspi_wait_ready ();
 			hspi_send_uint16 (0x0200 | digits[1]);	// set first digit segments
@@ -149,6 +152,7 @@ counter_task(void *pvParameters)
 			hspi_wait_ready ();
 			hspi_send_uint16 (0x0800 | digits[7]);
 			hspi_wait_ready ();
+			taskEXIT_CRITICAL();
 			//os_delay_us (50000);
 			//os_delay_us (50000);
 			//os_delay_us (50000);
@@ -210,15 +214,14 @@ counter_task(void *pvParameters)
 void ICACHE_FLASH_ATTR
 user_init(void)
 {
-	// Kill the watchdog
-	system_soft_wdt_stop();	// blob API
+	// Kill the watchdog ACTUALLY PREVENTS FEEDING IT ???
+	// system_soft_wdt_stop();	// blob API
 
 	// Multiplex the LED pin as GPIO
 	PIN_FUNC_SELECT(LED_GPIO_MUX, LED_GPIO_FUNC);
 
 	// Tell FreeRTOS to start the LED blink task
-    //xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
-    //while(1);
+    xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
 
 	hspi_init();
 
@@ -255,7 +258,7 @@ user_init(void)
 	hspi_rx_byte_order_H_to_L;
 
 	hspi_mode(1, 0);
-	hspi_clock (40);	// .1 MHz SCK
+	hspi_clock (4);	// 10 MHz SCK
 
 	//xTaskCreate(rgb_task, "rgb_task", 256, NULL, 2, NULL);
 	//while (1);
@@ -278,57 +281,5 @@ user_init(void)
 	*/
 
 	xTaskCreate(counter_task, "counter_task", 256, NULL, 2, NULL);
-
-
-	while (1);
-
-
-	int k = 0;
-	while (1)
-	{
-		LED(k);
-		k++;
-		if (k == 145) k = 0;
-		//os_delay_us (5000);
-	}
-
-
-	while (1)
-	{
-		hspi_wait_ready ();
-		hspi_send_uint32 (0x00000000);
-		hspi_wait_ready ();
-		hspi_send_uint32 (0xF0000010);	// rather random
-		hspi_wait_ready ();
-		hspi_send_uint32 (0xF0001000);	// rather random
-		hspi_wait_ready ();
-		hspi_send_uint32 (0xF0100000);	// rather random
-		hspi_wait_ready ();
-		//hspi_send_uint32 (0xFFFFFFFF);
-		hspi_wait_ready ();
-
-		os_delay_us (50000);
-		os_delay_us (50000);
-		os_delay_us (50000);
-		os_delay_us (50000);
-
-		hspi_wait_ready ();
-		hspi_send_uint32 (0x00000000);
-		hspi_wait_ready ();
-		hspi_send_uint32 (0xF0000000);	// rather random
-		hspi_wait_ready ();
-		hspi_send_uint32 (0xF0000000);	// rather random
-		hspi_wait_ready ();
-		hspi_send_uint32 (0xF0000000);	// rather random
-		hspi_wait_ready ();
-		//hspi_send_uint32 (0xFFFFFFFF);
-		hspi_wait_ready ();
-
-		os_delay_us (50000);
-		os_delay_us (50000);
-		os_delay_us (50000);
-		os_delay_us (50000);
-	}
-
 }
 
