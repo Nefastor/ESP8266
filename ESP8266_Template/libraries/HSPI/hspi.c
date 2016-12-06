@@ -99,6 +99,7 @@ inline void hspi_wait_ready(void)
 
 // Send up to SPIFIFOSIZE x 4 = 64 bytes. Warning : sending more will overflow the HSPI
 // parameters are : pointer to a byte array, and number of bytes to send
+// WARNING - BE SURE OF ENDIANNESS
 void hspi_send_data(const uint8_t * data, int8_t datasize)
 {
 	uint32_t *_data = (uint32_t*)data;	// recast data pointer from 8 bits to 32 bits (the width of the HSPI data registers)
