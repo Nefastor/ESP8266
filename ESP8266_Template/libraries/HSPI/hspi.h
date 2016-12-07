@@ -107,15 +107,8 @@ uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint3
 // stolen from spi.h
 // note : the original hspi.c transmission macros are likely faster,
 // so what's really useful here are the macros for reading data
-#define hspi_txd(bits, data) hspi_transaction(0, 0, 0, 0, bits, (uint32) data, 0, 0)
 #define hspi_tx8(data)       hspi_transaction(0, 0, 0, 0, 8,    (uint32) data, 0, 0)
 #define hspi_tx16(data)      hspi_transaction(0, 0, 0, 0, 16,   (uint32) data, 0, 0)
-#define hspi_tx32(data)      hspi_transaction(0, 0, 0, 0, 32,   (uint32) data, 0, 0)
-
-#define hspi_rxd(bits)   hspi_transaction(0, 0, 0, 0, 0, 0, bits, 0)
-#define hspi_rx8()       hspi_transaction(0, 0, 0, 0, 0, 0, 8,    0)
-#define hspi_rx16()      hspi_transaction(0, 0, 0, 0, 0, 0, 16,   0)
-#define hspi_rx32()      hspi_transaction(0, 0, 0, 0, 0, 0, 32,   0)
 
 // NEW API
 
