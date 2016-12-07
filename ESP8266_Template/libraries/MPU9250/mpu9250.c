@@ -92,21 +92,28 @@ void mpu9250_read_sensors ()
 	hspi_wait_ready (); //wait for SPI to be ready
 
 	//disable all phases of the transaction in case they were previously set
-	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI|SPI_USR_MISO|SPI_USR_COMMAND|SPI_USR_ADDR|SPI_USR_DUMMY);
+	//CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI|SPI_USR_MISO|SPI_USR_COMMAND|SPI_USR_ADDR|SPI_USR_DUMMY);
+	hspi_disable_all_phases;
+	hspi_setup_clear ();
+	hspi_setup_write_phase (8, 0xBB);	// 8-bit register address 59 + "read" bit (0x80)
+	hspi_setup_read_phase (160);		// 10 registers, 16 bits each
 
 	// Setup the number of bits for each phase of the SPI transaction
-	WRITE_PERI_REG(SPI_USER1(HSPI),   ((0x7)&SPI_USR_MOSI_BITLEN)<<SPI_USR_MOSI_BITLEN_S | 			// Data Out
-									  ((159)&SPI_USR_MISO_BITLEN)<<SPI_USR_MISO_BITLEN_S); 			// Data In
+	//WRITE_PERI_REG(SPI_USER1(HSPI),   ((0x7)&SPI_USR_MOSI_BITLEN)<<SPI_USR_MOSI_BITLEN_S | 			// Data Out
+	//								  ((159)&SPI_USR_MISO_BITLEN)<<SPI_USR_MISO_BITLEN_S); 			// Data In
+
+
 
 	// Enable the transmission (MOSI) and reception (MISO) phases
-	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI);
-	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MISO);
+	//SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI);
+	//SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MISO);
 
-	// Copy register address to W0. Note : 0xBB = 0x80 | 59
-	WRITE_PERI_REG(SPI_W0(HSPI), 0xBB000000); // put the register address in the MSByte
+	// Copy register address to W0. Note : 0xBB = 0x80 | 59, shifted to MSB
+	//WRITE_PERI_REG(SPI_W0(HSPI), 0xBB000000); // put the register address in the MSByte
 
 	// Start the SPI transaction
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);
+	// SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);
+	hspi_start_transaction;
 
 	hspi_wait_ready (); //wait for SPI to be ready
 }
