@@ -69,7 +69,7 @@ counter_task(void *pvParameters)
 	hspi_wait_ready ();
 	hspi_send_uint16 (0x0C01);	// exit shutdown mode
 	hspi_wait_ready ();
-	hspi_send_uint16 (0x0A01);	// set brightness medium high
+	hspi_send_uint16 (0x0A0F);	// set brightness medium high
 	hspi_wait_ready ();
 	hspi_send_uint16 (0x0B07);	// scan all digits
 	hspi_wait_ready ();
@@ -96,7 +96,7 @@ counter_task(void *pvParameters)
 		hspi_send_uint16 (0x0800 | digits[7]);
 		hspi_wait_ready ();
 		taskEXIT_CRITICAL();
-		vTaskDelay (1);	// comment-out for maximum counting speed
+		//vTaskDelay (1);	// comment-out for maximum counting speed
 		// Counter increment
 		digits[0]++;
 		if (digits[0] == 10)
