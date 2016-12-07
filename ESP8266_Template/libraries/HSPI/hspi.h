@@ -59,6 +59,10 @@ uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint3
 #define hspi_enable_prediv	WRITE_PERI_REG(PERIPHS_IO_MUX, 0x105)
 
 // enable / disable phases of an SPI transaction
+
+// disable all phases of an SPI transaction (should be called prior to setting up a new transaction type)
+#define hspi_disable_all_phases		CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI|SPI_USR_MISO|SPI_USR_COMMAND|SPI_USR_ADDR|SPI_USR_DUMMY);
+
 #define hspi_enable_command_phase	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_COMMAND)
 #define hspi_disable_command_phase 	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_COMMAND)
 
@@ -93,6 +97,12 @@ uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint3
 #define hspi_enable_flash_mode		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_FLASH_MODE);
 #define hspi_disable_flash_mode		CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_FLASH_MODE);
 
+// Transaction control :
+// Test if the HSPI is busy (transaction in progress)
+#define hspi_busy READ_PERI_REG(SPI_CMD(HSPI))&SPI_USR
+// Start the SPI transaction
+#define hspi_start_transaction		SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);
+
 
 // stolen from spi.h
 // note : the original hspi.c transmission macros are likely faster,
@@ -106,6 +116,11 @@ uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint3
 #define hspi_rx8()       hspi_transaction(0, 0, 0, 0, 0, 0, 8,    0)
 #define hspi_rx16()      hspi_transaction(0, 0, 0, 0, 0, 0, 16,   0)
 #define hspi_rx32()      hspi_transaction(0, 0, 0, 0, 0, 0, 32,   0)
+
+// NEW API
+
+void hspi_setup_write_short_BE (uint32 dout_bits, uint32 dout_data);
+void hspi_setup_write_short_LE (uint32 dout_bits, uint32 dout_data);
 
 
 #endif /* INCLUDE_HSPI_H_ */
