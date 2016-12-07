@@ -1,5 +1,4 @@
 #include "hspi.h"
-//#include "spi.c"	// no longer needed, I got what I needed
 
 /*
 	JRO : This library controls the HSPI (Hardware SPI) controller of the ESP8266.
@@ -18,11 +17,6 @@
 	IIRC this library is based on work by someone called MetalPhreak or something like that.
 	I will track down the source.
 */
-
-
-// For fast peripherals like displays, the full SPI transaction function isn't optimal,
-// because it is designed to handle every possible type of transaction. To optimize
-// for speed, it can be deconstructed
 
 // Work in Progress : API redesign for higher versatility
 
@@ -147,7 +141,7 @@ inline void hspi_setup_write_phase (uint32 dout_bits, uint32 dout_data)
 		hspi_setup_write_short_LE (dout_bits, dout_data);
 }
 
-// HSPI can read up to 512 bits. They will be in the HSPI buffer registers.
+// HSPI can read up to 512 bits. They will be stored in the HSPI buffer registers.
 inline void hspi_setup_read_phase (uint32 din_bits)
 {
 	// Setup the number of bits for the read phase
