@@ -172,6 +172,13 @@ inline void hspi_setup_dummy_phase (uint32 dummy_bits)
 // two parameters : byte ordering and how many bits are to be sent.
 // The following functions are speed-optimized for different scenarios.
 
+// Note on "little endian" (from Metal Phreak's comments)
+// Data is sent out starting with the lowest BYTE, from
+// MSB to LSB, followed by the second lowest BYTE, from
+// MSB to LSB, followed by the second highest BYTE, from
+// MSB to LSB, followed by the highest BYTE, from MSB to LSB
+// 0xABCDEFGH would be sent as 0xGHEFCDAB
+
 // Short write (32 bits or less) in big endian mode (MSB is sent first)
 inline void hspi_setup_write_short_BE (uint32 dout_bits, uint32 dout_data)
 {
@@ -203,6 +210,9 @@ inline void hspi_setup_write_short_LE (uint32 dout_bits, uint32 dout_data)
 
 /////////////////////// TRANSACTION CONTROL //////////////////////
 
+// Wait for the current transaction to complete. Call: :
+// - before setting up a transaction
+// - after starting a read transaction, or at least before reading its results
 inline void hspi_wait_ready(void)
 {
 	while (hspi_busy);
