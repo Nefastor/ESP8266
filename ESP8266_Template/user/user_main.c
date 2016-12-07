@@ -59,6 +59,13 @@ blink_task(void *pvParameters)
     }
 }
 
+inline void hspi_send_uint16(uint16_t data)
+{
+	hspi_wait_ready ();
+	*HSPI_FIFO = data << 16; // shift because MSB first
+	hspi_start_transaction;
+}
+
 void ICACHE_FLASH_ATTR
 counter_task(void *pvParameters)
 {
@@ -66,35 +73,22 @@ counter_task(void *pvParameters)
 	uint8 k = 0;
 	uint8 digits[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 	taskENTER_CRITICAL();
-	hspi_wait_ready ();
 	hspi_send_uint16 (0x0C01);	// exit shutdown mode
-	hspi_wait_ready ();
 	hspi_send_uint16 (0x0A0F);	// set brightness medium high
-	hspi_wait_ready ();
 	hspi_send_uint16 (0x0B07);	// scan all digits
-	hspi_wait_ready ();
 	hspi_send_uint16 (0x09FF);	// BCD decoding
-	hspi_wait_ready ();
 	taskEXIT_CRITICAL();
 	while (1)
 	{
 		taskENTER_CRITICAL();
 		hspi_send_uint16 (0x0100 | digits[0]);	// set first digit segments
-		hspi_wait_ready ();
-		hspi_send_uint16 (0x0200 | digits[1]);	// set first digit segments
-		hspi_wait_ready ();
-		hspi_send_uint16 (0x0300 | digits[2]);	// set first digit segments
-		hspi_wait_ready ();
+		hspi_send_uint16 (0x0200 | digits[1]);
+		hspi_send_uint16 (0x0300 | digits[2]);
 		hspi_send_uint16 (0x0400 | digits[3]);
-		hspi_wait_ready ();
 		hspi_send_uint16 (0x0500 | digits[4]);
-		hspi_wait_ready ();
 		hspi_send_uint16 (0x0600 | digits[5]);
-		hspi_wait_ready ();
 		hspi_send_uint16 (0x0700 | digits[6]);
-		hspi_wait_ready ();
 		hspi_send_uint16 (0x0800 | digits[7]);
-		hspi_wait_ready ();
 		taskEXIT_CRITICAL();
 		//vTaskDelay (1);	// comment-out for maximum counting speed
 		// Counter increment
@@ -157,13 +151,19 @@ user_init(void)
 	// Tell FreeRTOS to start the LED blink task
     xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
 
-	hspi_init();
+	hspi_init();			// disables all SPI transaction phases so...
+	hspi_enable_data_phase;	// ... enable the write phase, it's the only one the MAX7219 needs
+
+	// we're always going to send data 16 bits at a time:
+	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 15) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
 
 	hspi_tx_byte_order_H_to_L;
 	hspi_rx_byte_order_H_to_L;
 
 	hspi_mode(1, 0);
 	hspi_clock (4);	// 10 MHz SCK
+
+
 
 	xTaskCreate(counter_task, "counter_task", 256, NULL, 2, NULL);
 }
