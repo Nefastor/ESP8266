@@ -74,11 +74,11 @@ void spi_transaction ()
 	mpu9250_read_sensors ();
 
     // Note : with these 16 bit pointers the array indices are "swapped".
-    // spi_data_in = HSPI_FIFO_16[3]; // Acc_Z
+    spi_data_in = HSPI_FIFO_16[3]; // Acc_Z
 
     // Convert to standard units
-    mpu9250_convert ();
-    spi_data_in = (int) accel_data[0];
+    //mpu9250_convert ();
+    //spi_data_in = (int) accel_data[0];
 }
 
 void spi_transaction_who_am_I ()
