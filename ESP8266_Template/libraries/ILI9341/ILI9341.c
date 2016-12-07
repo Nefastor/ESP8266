@@ -28,6 +28,11 @@ int16_t		_height = ILI9341_TFTHEIGHT;	// Initialized for rotation = 0
 uint16_t	textcolor = 0xFFFF;				// White on black text
 uint16_t	textbgcolor = 0x0000;
 
+// let's shorten the two SPI transactions used by this library :
+#define hspi_tx8(data)       hspi_transaction(0, 0, 0, 0, 8,    (uint32) data, 0, 0)
+#define hspi_tx16(data)      hspi_transaction(0, 0, 0, 0, 16,   (uint32) data, 0, 0)
+
+
 // Transmit 16 bits. Typically used to send pixel data (16-bit colors)
 // (because of that, there's no "hspi_wait_ready();" at the start, be careful)
 inline void transmitData(uint16_t data)
