@@ -24,37 +24,34 @@
 // because it is designed to handle every possible type of transaction. To optimize
 // for speed, it can be deconstructed
 
-void hspi_init(void)
+// Work in Progress : API redesign for higher versatility
+
+//////////////////////// INTERFACE SETUP FUNCTIONS /////////////////////////
+
+// Set pin muxing for HSPI. Also takes care of miscellaneous inits
+inline void hspi_setup_pins ()
 {
-	hspi_init_gpio();
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); // GPIO12 is HSPI MISO pin (Master Data In)
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); // GPIO13 is HSPI MOSI pin (Master Data Out)
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); // GPIO14 is HSPI CLK pin (Clock)
+	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); // GPIO15 is HSPI CS pin (Chip Select / Slave Select)
 
-	// Lengthen SSEL (setup and hold)
-	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_CS_SETUP|SPI_CS_HOLD);
-	// Disable Flash mode
-	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_FLASH_MODE);
+	hspi_disable_flash_mode;		// Disable Flash mode
+	hspi_long_ssel;					// Lengthen SSEL (setup and hold)
 
-// These are set by the transaction function, but not by the simple data transmission functions
+	// Disable all SPI transaction phases except data out
 	hspi_enable_data_phase;
 	hspi_disable_addr_phase;
 	hspi_disable_dummy_phase;
 	hspi_disable_read_phase;
 	hspi_disable_command_phase;
 	// some libraries disable SPI_USER bit 2 and bit 0 (also named "SPI_DOUTDIN")
-
-	hspi_tx_byte_order_L_to_H;	// ILI9341 works like this
-	hspi_rx_byte_order_L_to_H;	// this is the default order, by the way
 }
 
-inline void hspi_init_gpio (void)
-{
-	// Set pin muxing for HSPI
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, 2); // GPIO12 is HSPI MISO pin (Master Data In)
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTCK_U, 2); // GPIO13 is HSPI MOSI pin (Master Data Out)
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTMS_U, 2); // GPIO14 is HSPI CLK pin (Clock)
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDO_U, 2); // GPIO15 is HSPI CS pin (Chip Select / Slave Select)
-}
+inline void hspi_init_gpio (void) {	hspi_setup_pins ();} // LEGACY API
 
-void hspi_mode(uint8 spi_cpha, uint8 spi_cpol)
+// Set the SPI mode
+void hspi_setup_mode(uint8 spi_cpha, uint8 spi_cpol)
 {
 	if(spi_cpha)
 		CLEAR_PERI_REG_MASK(SPI_USER(1), SPI_CK_OUT_EDGE);
@@ -66,6 +63,38 @@ void hspi_mode(uint8 spi_cpha, uint8 spi_cpol)
 	else
 		CLEAR_PERI_REG_MASK(SPI_PIN(1), SPI_IDLE_EDGE);
 }
+
+void hspi_mode(uint8 spi_cpha, uint8 spi_cpol) {hspi_setup_mode(spi_cpha, spi_cpol);} // LEGACY API
+
+// Set the byte transmission order (little or big endian)
+inline void hspi_setup_big_endian ()
+{
+	hspi_tx_byte_order_H_to_L;
+	hspi_rx_byte_order_H_to_L;
+}
+
+inline void hspi_setup_little_endian ()
+{
+	hspi_tx_byte_order_L_to_H;	// ILI9341 works like this
+	hspi_rx_byte_order_L_to_H;	// this is the default order, by the way
+}
+
+void hspi_init(void) {	hspi_setup_pins();	hspi_setup_little_endian();} // LEGACY API
+
+void hspi_setup_clock ()
+{
+
+}
+
+
+
+////////////////// LEGACY API ////////////////////////////////////
+
+
+
+
+
+
 
 // SCK will be 80 MHz if prediv is 0, otherwise it'll be 40 MHz / prediv
 void hspi_clock(uint16 prediv)

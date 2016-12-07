@@ -85,8 +85,13 @@ uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint3
 #define hspi_disable_ck_out_edge 	CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_CK_OUT_EDGE)
 // (they appear to have no effect)
 
-// also do SPI_CS_SETUP, SPI_CS_HOLD, SPI_FLASH_MODE
+// SPI_CS_SETUP and SPI_CS_HOLD can be used to enhance SSEL (a.k.a. SPI CS)
+#define hspi_long_ssel				SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_CS_SETUP | SPI_CS_HOLD)
+#define hspi_short_ssel				CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_CS_SETUP | SPI_CS_HOLD)
 
+// Disabling flash mode is required for generic SPI operation
+#define hspi_enable_flash_mode		SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_FLASH_MODE);
+#define hspi_disable_flash_mode		CLEAR_PERI_REG_MASK(SPI_USER(HSPI), SPI_FLASH_MODE);
 
 
 // stolen from spi.h
