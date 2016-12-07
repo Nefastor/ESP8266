@@ -29,12 +29,9 @@ uint16_t	textcolor = 0xFFFF;				// White on black text
 uint16_t	textbgcolor = 0x0000;
 
 // Transmit 16 bits. Typically used to send pixel data (16-bit colors)
+// (because of that, there's no "hspi_wait_ready();" at the start, be careful)
 inline void transmitData(uint16_t data)
 {
-	// hspi_wait_ready();
-	// hspi_send_uint16(data);
-
-	// replacing with spi.c call :
 	hspi_tx16(data);
 }
 
@@ -42,28 +39,19 @@ inline void transmitCmd(uint8_t cmd)
 {
 	//hspi_wait_ready();	// first wait may be unnecessary because shorter than a function call start
 	TFT_DC_COMMAND;
-	//hspi_send_uint8(cmd);
 	hspi_tx8(cmd);
-	hspi_wait_ready();		// this one is vital
+	hspi_wait_ready();		// this one is vital, however
 	TFT_DC_DATA;	// I put this there because there may be multiple data transfers next
 }
 
 inline void setAddrWindow (uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
 	transmitCmd (ILI9341_CASET);
-	/*hspi_send_uint8(x0 >> 8);
-	hspi_send_uint8(x0 & 0xFF);
-	hspi_send_uint8(x1 >> 8);
-	hspi_send_uint8(x1 & 0xFF);*/
 	hspi_tx8(x0 >> 8);
 	hspi_tx8(x0 & 0xFF);
 	hspi_tx8(x1 >> 8);
 	hspi_tx8(x1 & 0xFF);
 	transmitCmd (ILI9341_PASET);
-	/*hspi_send_uint8(y0 >> 8);
-	hspi_send_uint8(y0 & 0xFF);
-	hspi_send_uint8(y1 >> 8);
-	hspi_send_uint8(y1 & 0xFF);*/
 	hspi_tx8(y0 >> 8);
 	hspi_tx8(y0 & 0xFF);
 	hspi_tx8(y1 >> 8);
@@ -75,7 +63,6 @@ inline void setAddrWindow (uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 void transmitCmdDataBuf (uint8_t cmd, const uint8_t *data, uint8_t numDataByte)
 {
 	TFT_DC_COMMAND;
-	// hspi_send_uint8(cmd);
 	hspi_tx8(cmd);
 	TFT_DC_DATA;
 	hspi_send_data(data, numDataByte);
@@ -89,7 +76,7 @@ ICACHE_FLASH_ATTR void begin (void)
 	hspi_init();
 
 	// Setup SPI bit rate : 20 to 80 MHz supported
-	hspi_clock(0); //0 for 80 MHz, anything else is 40 MHz / N, where N is less than 8192.
+	hspi_clock(0); // 0 for 80 MHz, anything else is 40 MHz / N, where N is less than 8192.
 
 	// Initialize the GPIO pin that will drive the ILI9341's command / data signal
 	TFT_DC_INIT;
@@ -223,8 +210,6 @@ ICACHE_FLASH_ATTR void begin (void)
 
 	transmitCmd(0x29);    // Display on
 	transmitCmd(0x2c);
-
-
 }
 
 /* The following function is very generic and slow. Try to avoid using it*/
@@ -277,8 +262,8 @@ void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
 }
 
 
-// Pass 8-bit (each) R,G,B, get back 16-bit packed color
-uint16_t color565(uint8_t r, uint8_t g, uint8_t b)
+// Convert 8-bit (each) R,G,B into 16-bit packed color
+inline uint16_t color565(uint8_t r, uint8_t g, uint8_t b)
 {
 	return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
