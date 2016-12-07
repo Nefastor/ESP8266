@@ -234,31 +234,9 @@ void hspi_send_data(const uint8_t * data, int8_t datasize)
 		datasize -= 4;	// because I'm sending 4 bytes at a time
 	}
 
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
+	hspi_start_transaction; // replaces statement below (validate with LCD demo)
+	// SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
 }
-
-
-inline void hspi_send_uint8(uint8_t data)
-{
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 7) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	// hspi_prepare_tx(1);
-	*HSPI_FIFO = data;
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
-}
-
-inline void hspi_send_uint16(uint16_t data)
-{
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 15) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	//hspi_prepare_tx(2);
-	*HSPI_FIFO = data;
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
-}
-
-inline void hspi_send_uint32(uint32_t data)
-{
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 31) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	// hspi_prepare_tx(4);
-	*HSPI_FIFO = data;
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
-}
-
 
 
 /*
