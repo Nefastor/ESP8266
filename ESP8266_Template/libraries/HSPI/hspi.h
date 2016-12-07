@@ -31,11 +31,8 @@ inline void hspi_send_uint32(uint32_t data);
 void hspi_send_data(const uint8_t * data, int8_t datasize);
 
 // stolen from spi.c and mutated into an HSPI-only function.
-// I need this function in order to implement SPI reads and, of course, all transaction formats
 uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint32 addr_data, uint32 dout_bits, uint32 dout_data,
 				uint32 din_bits, uint32 dummy_bits);
-
-
 
 // The HSPI has a FIFO of 16 registers. This macro defines a pointer so they can be accessed as an array
 #define HSPI_FIFO ((uint32_t*) SPI_W0(HSPI))	// for use as an array in repeat transfer

@@ -325,6 +325,3 @@ uint32 hspi_transaction (uint8 cmd_bits, uint16 cmd_data,
 	return 1; //Transaction completed successfully
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-
