@@ -47,6 +47,17 @@ void task_lcd_1(void *pvParameters)
 	}
 }
 
+void task_lcd_2(void *pvParameters)
+{
+	int count = 0;
+
+	while (1)
+	{
+		drawNumber(count ,10 , 200, 2);
+		count++;
+	}
+}
+
 /******************************************************************************
  * FunctionName : user_init
  * Description  : entry of user application, init user function here
@@ -80,5 +91,6 @@ void user_init(void)
     // FreeRTOS task creation : function, name, stack depth, parameter to function, priority, handle
     // for more details read : http://www.freertos.org/a00125.html
     xTaskCreate(task_lcd_1, "tsk1", 256, NULL, 2, NULL);
+    //xTaskCreate(task_lcd_2, "tsk2", 256, NULL, 2, NULL);
 }
 

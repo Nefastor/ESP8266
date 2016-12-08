@@ -29,9 +29,35 @@ uint16_t	textcolor = 0xFFFF;				// White on black text
 uint16_t	textbgcolor = 0x0000;
 
 // let's shorten the two SPI transactions used by this library :
-#define hspi_tx8(data)       hspi_transaction(0, 0, 0, 0, 8,    (uint32) data, 0, 0)
-#define hspi_tx16(data)      hspi_transaction(0, 0, 0, 0, 16,   (uint32) data, 0, 0)
+//#define hspi_tx8(data)       hspi_transaction(0, 0, 0, 0, 8,    (uint32) data, 0, 0)
+//#define hspi_tx16(data)      hspi_transaction(0, 0, 0, 0, 16,   (uint32) data, 0, 0)
+// let's optimize further :
+inline void hspi_tx8(uint8_t data)
+{
+	// hspi_wait_ready (); // unnecessary because ILI9341 transmissions always start with 8 bit transfer, so there shouldn't be a previous transfer still in progress (especially at 80 MHz SPI) when this function is called.
+	hspi_setup_clear ();
+	hspi_setup_write_phase_length (8);	// set data length to 8 bit
+	WRITE_PERI_REG(SPI_W0(HSPI), data);	// direct to HSPI buffer (little-endian write)
+	hspi_start_transaction;
+}
 
+inline void hspi_tx16(uint16_t data)
+{
+	hspi_wait_ready (); // here however it's very necessary
+	hspi_setup_clear ();
+	hspi_setup_write_phase_length (16);	// set data length to 16 bit
+	WRITE_PERI_REG(SPI_W0(HSPI), data);	// direct to HSPI buffer (little-endian write)
+	hspi_start_transaction;
+}
+
+inline void hspi_tx32(uint32_t data)
+{
+	hspi_wait_ready (); // here however it's very necessary
+	hspi_setup_clear ();
+	hspi_setup_write_phase_length (32);	// set data length to 16 bit
+	WRITE_PERI_REG(SPI_W0(HSPI), data);	// direct to HSPI buffer (little-endian write)
+	hspi_start_transaction;
+}
 
 // Transmit 16 bits. Typically used to send pixel data (16-bit colors)
 // (because of that, there's no "hspi_wait_ready();" at the start, be careful)
@@ -51,16 +77,23 @@ inline void transmitCmd(uint8_t cmd)
 
 inline void setAddrWindow (uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
+	// Can the transfers be optimized to 32-bit sends ?
+	x0 = ((x0 & 0xFF) << 8) | (x0 >> 8); // byte swap
+	x1 = ((x1 & 0xFF) << 8) | (x1 >> 8); // byte swap
+	y0 = ((y0 & 0xFF) << 8) | (y0 >> 8); // byte swap
+	y1 = ((y1 & 0xFF) << 8) | (y1 >> 8); // byte swap
 	transmitCmd (ILI9341_CASET);
-	hspi_tx8(x0 >> 8);
+	/*hspi_tx8(x0 >> 8);
 	hspi_tx8(x0 & 0xFF);
 	hspi_tx8(x1 >> 8);
-	hspi_tx8(x1 & 0xFF);
+	hspi_tx8(x1 & 0xFF);*/
+	hspi_tx32(( (uint32_t) x1 << 16) | x0 ); // word swap
 	transmitCmd (ILI9341_PASET);
-	hspi_tx8(y0 >> 8);
+	/*hspi_tx8(y0 >> 8);
 	hspi_tx8(y0 & 0xFF);
 	hspi_tx8(y1 >> 8);
-	hspi_tx8(y1 & 0xFF);
+	hspi_tx8(y1 & 0xFF);*/
+	hspi_tx32(( (uint32_t) y1 << 16) | y0 ); // word swap
 	transmitCmd (ILI9341_RAMWR); // write to RAM : 16-bit pixel colors can be written right after this function returns
 }
 

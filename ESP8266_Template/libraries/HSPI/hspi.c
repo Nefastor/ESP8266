@@ -126,13 +126,14 @@ inline void hspi_setup_address_phase (uint32 addr_bits, uint32 addr_data)
 
 // This is the write data phase, it can send up to 512 bits
 // HOWEVER THIS IMPLEMENTATION IS LIMITED TO 32 BITS
+// It remains useful because it applies to both little and big endian
 inline void hspi_setup_write_phase (uint32 dout_bits, uint32 dout_data)
 {
 	// Setup the number of bits for the write phase
 	SET_PERI_REG_MASK (SPI_USER1(HSPI), ((dout_bits-1)&SPI_USR_MOSI_BITLEN)<<SPI_USR_MOSI_BITLEN_S);
 
-	// Setup the transmission (MOSI) phase
-	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI); // enable the transmission phase
+	// enable the transmission phase (MOSI)
+	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI);
 
 	//copy data to W0 (depends on byte transmission order
 	if (READ_PERI_REG(SPI_USER(HSPI))&SPI_WR_BYTE_ORDER)
@@ -141,8 +142,18 @@ inline void hspi_setup_write_phase (uint32 dout_bits, uint32 dout_data)
 		hspi_setup_write_short_LE (dout_bits, dout_data);
 }
 
+// More decomposition : this function can be called from other write setup functions
+inline void hspi_setup_write_phase_length (uint32 dout_bits)
+{
+	// Setup the number of bits for the write phase
+	SET_PERI_REG_MASK (SPI_USER1(HSPI), ((dout_bits-1)&SPI_USR_MOSI_BITLEN)<<SPI_USR_MOSI_BITLEN_S);
+
+	// enable the transmission phase (MOSI)
+	SET_PERI_REG_MASK(SPI_USER(HSPI), SPI_USR_MOSI);
+}
+
 // HSPI can read up to 512 bits. They will be stored in the HSPI buffer registers.
-inline void hspi_setup_read_phase (uint32 din_bits)
+inline void hspi_setup_read_phase_length (uint32 din_bits)
 {
 	// Setup the number of bits for the read phase
 	SET_PERI_REG_MASK (SPI_USER1(HSPI), ((din_bits-1)&SPI_USR_MISO_BITLEN)<<SPI_USR_MISO_BITLEN_S);
@@ -176,12 +187,18 @@ inline void hspi_setup_dummy_phase (uint32 dummy_bits)
 // Short write (32 bits or less) in big endian mode (MSB is sent first)
 inline void hspi_setup_write_short_BE (uint32 dout_bits, uint32 dout_data)
 {
-	WRITE_PERI_REG(SPI_W0(HSPI), dout_data<<(32-dout_bits));
+	// Enable write phase and set its length
+	hspi_setup_write_phase_length (dout_bits);
+
+	WRITE_PERI_REG(SPI_W0(HSPI), dout_data << (32-dout_bits));
 }
 
 // Short write (32 bits or less) in little endian mode (LSB is sent first)
 inline void hspi_setup_write_short_LE (uint32 dout_bits, uint32 dout_data)
 {
+	// Enable write phase and set its length
+	hspi_setup_write_phase_length (dout_bits);
+
 	//if your data isn't a byte multiple (8/16/24/32 bits)and you don't have SPI_WR_BYTE_ORDER set, you need this to move the non-8bit remainder to the MSBs
 	//not sure if there's even a use case for this, but it's here if you need it...
 	//for example, 0xDA4 12 bits without SPI_WR_BYTE_ORDER would usually be output as if it were 0x0DA4,
@@ -196,7 +213,29 @@ inline void hspi_setup_write_short_LE (uint32 dout_bits, uint32 dout_data)
 		WRITE_PERI_REG(SPI_W0(HSPI), dout_data);
 }
 
+// Long write (1 to 512 bits) in big endian mode (MSB is sent first)
+// The data will be passed as a DWORD array
+// Note : LE order can be "faked" by using a byte array and recasting the pointer
+void hspi_setup_write_long_BE (uint32 dout_bits, uint32 *dout_data)
+{
+	// Enable write phase and set its length
+	hspi_setup_write_phase_length (dout_bits);
 
+	uint32_t* buff = (uint32_t*) SPI_W0(HSPI);	// pointer to the first word of the buffer
+
+	// Copy 32 bits at a time. Loop will be skipped if there's less than 32 bits to send
+	while (dout_bits >= 32)
+	{
+		*buff = *dout_data;		// Copy 32 bits from argument to buffer
+		buff++;					// Increment both pointers
+		dout_data++;
+		dout_bits -= 32;		// Decrement the bits counter
+	}
+
+	// If there's any data left, shift it before copying it
+	if (dout_bits > 0)
+		*buff = (*dout_data) << (32 - dout_bits);
+}
 
 
 
@@ -218,47 +257,26 @@ inline void hspi_wait_ready(void)
 
 
 // Send up to SPIFIFOSIZE x 4 = 64 bytes. Warning : sending more will overflow the HSPI
-// parameters are : pointer to a byte array, and number of bytes to send
+// Parameters are : pointer to a byte array, and number of bytes to send
 // WARNING - BE SURE OF ENDIANNESS
-void hspi_send_data(const uint8_t * data, int8_t datasize)
+// note : why the "const" on the first argument ?
+inline void hspi_send_data(const uint8_t * data, int8_t datasize)
 {
 	uint32_t *_data = (uint32_t*)data;	// recast data pointer from 8 bits to 32 bits (the width of the HSPI data registers)
 
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((datasize << 3) - 1) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	// hspi_prepare_tx(datasize);
+	// Enable write phase and set its length. 8 * datasize (bytes to bits)
+	hspi_setup_write_phase_length (datasize << 3);
 
-	uint8_t i = 0;
+	uint32_t* buff = (uint32_t*) SPI_W0(HSPI); // HSPI buffer start address
 
 	while (datasize > 0)	// because this will go negative if datasize % 4 != 0
 	{
-		HSPI_FIFO[i++] = *_data++;
-		datasize -= 4;	// because I'm sending 4 bytes at a time
+		*buff++ = *_data++;
+		datasize -= 4;	// because datasize is in bytes and I'm sending 4 bytes at a time
 	}
 
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
+	hspi_start_transaction;
 }
-
-
-inline void hspi_send_uint8(uint8_t data)
-{
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 7) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	// hspi_prepare_tx(1);
-	*HSPI_FIFO = data;
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
-}
-
-inline void hspi_send_uint16(uint16_t data)
-{
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 15) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	//hspi_prepare_tx(2);
-	*HSPI_FIFO = data;
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
-}
-
-inline void hspi_send_uint32(uint32_t data)
-{
-	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 31) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);	// hspi_prepare_tx(4);
-	*HSPI_FIFO = data;
-	SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
-}
-
 
 
 /*
@@ -305,7 +323,7 @@ uint32 hspi_transaction (uint8 cmd_bits, uint16 cmd_data,
 	if(cmd_bits) hspi_setup_command_phase (cmd_bits, cmd_data);
 	if(addr_bits) hspi_setup_address_phase (addr_bits, addr_data);
 	if(dout_bits) hspi_setup_write_phase (dout_bits, dout_data);
-	if(din_bits) hspi_setup_read_phase (din_bits);
+	if(din_bits) hspi_setup_read_phase_length (din_bits);
 	if(dummy_bits) hspi_setup_dummy_phase (dummy_bits);
 
 	// Start the SPI transaction
@@ -324,7 +342,4 @@ uint32 hspi_transaction (uint8 cmd_bits, uint16 cmd_data,
 
 	return 1; //Transaction completed successfully
 }
-
-
-////////////////////////////////////////////////////////////////////////////////
 
