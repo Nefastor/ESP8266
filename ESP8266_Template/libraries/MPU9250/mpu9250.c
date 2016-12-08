@@ -96,7 +96,7 @@ void mpu9250_read_sensors ()
 	hspi_disable_all_phases;
 	hspi_setup_clear ();
 	hspi_setup_write_phase (8, 0xBB);	// 8-bit register address 59 + "read" bit (0x80)
-	hspi_setup_read_phase (160);		// 10 registers, 16 bits each
+	hspi_setup_read_phase_length (160);		// 10 registers, 16 bits each
 
 	// Setup the number of bits for each phase of the SPI transaction
 	//WRITE_PERI_REG(SPI_USER1(HSPI),   ((0x7)&SPI_USR_MOSI_BITLEN)<<SPI_USR_MOSI_BITLEN_S | 			// Data Out
