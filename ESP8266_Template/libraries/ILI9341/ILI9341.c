@@ -28,20 +28,25 @@ int16_t		_height = ILI9341_TFTHEIGHT;	// Initialized for rotation = 0
 uint16_t	textcolor = 0xFFFF;				// White on black text
 uint16_t	textbgcolor = 0x0000;
 
-// let's shorten the two SPI transactions used by this library :
-//#define hspi_tx8(data)       hspi_transaction(0, 0, 0, 0, 8,    (uint32) data, 0, 0)
-//#define hspi_tx16(data)      hspi_transaction(0, 0, 0, 0, 16,   (uint32) data, 0, 0)
-// let's optimize further :
-inline void hspi_tx8(uint8_t data)
+////////// Custom HSPI functions optimized for operating the ILI9341 /////////
+// They serve two purposes : performance enhancement and source code readability
+
+// Transmit 8 bits. Used to send command bytes.
+// Followed by calls to transmitData (pixel color) or transmitRange (to select a display area)
+inline void transmitCmd (uint8_t data)
 {
-	// hspi_wait_ready (); // unnecessary because ILI9341 transmissions always start with 8 bit transfer, so there shouldn't be a previous transfer still in progress (especially at 80 MHz SPI) when this function is called.
+	TFT_DC_COMMAND;
+	// hspi_wait_ready (); // unnecessary because ILI9341 transmissions always start with a command byte transfer, so there shouldn't be a previous transfer still in progress when this function is called.
 	hspi_setup_clear ();
 	hspi_setup_write_phase_length (8);	// set data length to 8 bit
 	WRITE_PERI_REG(SPI_W0(HSPI), data);	// direct to HSPI buffer (little-endian write)
 	hspi_start_transaction;
+	hspi_wait_ready();		// this one is vital, however
+	TFT_DC_DATA;
 }
 
-inline void hspi_tx16(uint16_t data)
+// Transmit 16 bits. Typically used to send pixel data (16-bit colors)
+inline void transmitData (uint16_t data)
 {
 	hspi_wait_ready (); // here however it's very necessary
 	hspi_setup_clear ();
@@ -50,7 +55,8 @@ inline void hspi_tx16(uint16_t data)
 	hspi_start_transaction;
 }
 
-inline void hspi_tx32(uint32_t data)
+// Transmit 32 bits. Typically used to send display "window" coordinates
+inline void transmitRange (uint32_t data)
 {
 	hspi_wait_ready (); // here however it's very necessary
 	hspi_setup_clear ();
@@ -59,67 +65,25 @@ inline void hspi_tx32(uint32_t data)
 	hspi_start_transaction;
 }
 
-// Transmit 16 bits. Typically used to send pixel data (16-bit colors)
-// (because of that, there's no "hspi_wait_ready();" at the start, be careful)
-inline void transmitData(uint16_t data)
-{
-	hspi_tx16(data);
-}
-
-inline void transmitCmd(uint8_t cmd)
-{
-	//hspi_wait_ready();	// first wait may be unnecessary because shorter than a function call start
-	TFT_DC_COMMAND;
-	hspi_tx8(cmd);
-	hspi_wait_ready();		// this one is vital, however
-	TFT_DC_DATA;	// I put this there because there may be multiple data transfers next
-}
-
-inline void setAddrWindow (uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
-{
-	// Can the transfers be optimized to 32-bit sends ?
-	x0 = ((x0 & 0xFF) << 8) | (x0 >> 8); // byte swap
-	x1 = ((x1 & 0xFF) << 8) | (x1 >> 8); // byte swap
-	y0 = ((y0 & 0xFF) << 8) | (y0 >> 8); // byte swap
-	y1 = ((y1 & 0xFF) << 8) | (y1 >> 8); // byte swap
-	transmitCmd (ILI9341_CASET);
-	/*hspi_tx8(x0 >> 8);
-	hspi_tx8(x0 & 0xFF);
-	hspi_tx8(x1 >> 8);
-	hspi_tx8(x1 & 0xFF);*/
-	hspi_tx32(( (uint32_t) x1 << 16) | x0 ); // word swap
-	transmitCmd (ILI9341_PASET);
-	/*hspi_tx8(y0 >> 8);
-	hspi_tx8(y0 & 0xFF);
-	hspi_tx8(y1 >> 8);
-	hspi_tx8(y1 & 0xFF);*/
-	hspi_tx32(( (uint32_t) y1 << 16) | y0 ); // word swap
-	transmitCmd (ILI9341_RAMWR); // write to RAM : 16-bit pixel colors can be written right after this function returns
-}
-
 // Send a command byte followed by 1 to 64 data bytes
 void transmitCmdDataBuf (uint8_t cmd, const uint8_t *data, uint8_t numDataByte)
 {
-	TFT_DC_COMMAND;
-	hspi_tx8(cmd);
-	TFT_DC_DATA;
+	transmitCmd (cmd);
 	hspi_send_data(data, numDataByte);
 }
 
-ICACHE_FLASH_ATTR void begin (void)
+////////////// ILI-9341 COMMANDS //////////////////////////////////////
+// Now that we have optimized low-level SPI functions, time to use them
+
+// First, let's initialize the ILI9341... it's only polite.
+void lcd_init ()
 {
-	unsigned int ct;	// delay loop index
+	hspi_setup_pins();		// HSPI pin-muxing and (default) little-endianness
+	hspi_setup_clock(0);	// HSPI bit-rate : 0 for 80 MHz, or N for 40/N MHz
 
-	// Setup communication using HSPI
-	hspi_init();
+	TFT_DC_INIT;	// Initialize the GPIO pin that will drive the ILI9341's command / data signal
 
-	// Setup SPI bit rate : 20 to 80 MHz supported
-	hspi_clock(0); // 0 for 80 MHz, anything else is 40 MHz / N, where N is less than 8192.
-
-	// Initialize the GPIO pin that will drive the ILI9341's command / data signal
-	TFT_DC_INIT;
-
-	uint8_t data[15] = {0};
+	uint8_t data[15] = {0};	// Buffer used for init command parameter storage
 
 	// Power Control A
 	data[0] = 0x39;
@@ -250,8 +214,25 @@ ICACHE_FLASH_ATTR void begin (void)
 	transmitCmd(0x2c);
 }
 
-/* The following function is very generic and slow. Try to avoid using it*/
-void drawPixel(int16_t x, int16_t y, uint16_t color) {
+// Set the area of the display where pixel colors will be set
+// Note : there's an endianness issue that's begging to be optimized-out...
+inline void setAddrWindow (uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+{
+	x0 = ((x0 & 0xFF) << 8) | (x0 >> 8); // byte swap
+	x1 = ((x1 & 0xFF) << 8) | (x1 >> 8); // byte swap
+	y0 = ((y0 & 0xFF) << 8) | (y0 >> 8); // byte swap
+	y1 = ((y1 & 0xFF) << 8) | (y1 >> 8); // byte swap
+
+	transmitCmd (ILI9341_CASET);
+	transmitRange ((x1 << 16) | x0 ); // word swap
+	transmitCmd (ILI9341_PASET);
+	transmitRange ((y1 << 16) | y0 ); // word swap
+	transmitCmd (ILI9341_RAMWR); // write to RAM : 16-bit pixel colors can be written right after this function returns
+}
+
+
+// The following function is very generic and slow. Try to avoid using it.
+void lcd_draw_pixel (int16_t x, int16_t y, uint16_t color) {
 
 	// Nefastor : the following safety test reduces performance.
 	if((x < 0) ||(x >= _width) || (y < 0) || (y >= _height)) return;
@@ -266,8 +247,7 @@ void drawPixel(int16_t x, int16_t y, uint16_t color) {
 	transmitData(color);
 }
 
-
-void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color) {
+void lcd_fast_v_line (int16_t x, int16_t y, int16_t h, uint16_t color) {
 
 	// Rudimentary clipping
 	if((x >= _width) || (y >= _height)) return;
@@ -279,7 +259,7 @@ void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color) {
 	hspi_send_uint16_r(color, h);
 }
 
-void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) {
+void lcd_fast_h_line (int16_t x, int16_t y, int16_t w, uint16_t color) {
 
 	// Rudimentary clipping
 	if((x >= _width) || (y >= _height)) return;
@@ -288,17 +268,18 @@ void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) {
 	hspi_send_uint16_r(color, w);
 }
 
-ICACHE_FLASH_ATTR void fillScreen(uint16_t color) {
-	fillRect(0, 0,  _width, _height, color);
+//ICACHE_FLASH_ATTR
+void lcd_fill_screen (uint16_t color)
+{
+	lcd_fill_rect (0, 0,  _width, _height, color);
 }
 
 // fill a rectangle
-void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
+void lcd_fill_rect (int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
 {
 	setAddrWindow(x, y, x+w-1, y+h-1);
 	hspi_send_uint16_r(color, h*w);	// multiply is unavoidable here : a call loop would cost more
 }
-
 
 // Convert 8-bit (each) R,G,B into 16-bit packed color
 inline uint16_t color565(uint8_t r, uint8_t g, uint8_t b)
@@ -307,7 +288,7 @@ inline uint16_t color565(uint8_t r, uint8_t g, uint8_t b)
 }
 
 // Argument must be 0 to 3
-void setRotation(uint8_t m)
+void lcd_set_rotation (uint8_t m)
 {
 	uint8_t madctl;
 
@@ -341,14 +322,14 @@ void setRotation(uint8_t m)
 }
 
 
-void invertDisplay(bool i)
+inline void invertDisplay(bool i)
 {
 	transmitCmd(i ? ILI9341_INVON : ILI9341_INVOFF);
 }
 
-ICACHE_FLASH_ATTR int drawUnicode(uint16_t uniCode, uint16_t x, uint16_t y, uint8_t size)
+//ICACHE_FLASH_ATTR : I think this is no longer required
+int drawUnicode(uint16_t uniCode, uint16_t x, uint16_t y, uint8_t size)
 {
-
 	// Nefastor : the following tests reduce performance. Single-font functions might be faster
 	// Or maybe use const arrays indexed by the "size" argument to initialize the variables
 
@@ -464,15 +445,6 @@ ICACHE_FLASH_ATTR int drawUnicode(uint16_t uniCode, uint16_t x, uint16_t y, uint
 }
 
 /***************************************************************************************
- ** Function name:           drawChar
- ** Descriptions:            draw char
- ***************************************************************************************/
-ICACHE_FLASH_ATTR int drawChar(char c, uint16_t x, uint16_t y, uint8_t size)
-{
-	return drawUnicode(c, x, y, size);
-}
-
-/***************************************************************************************
  ** Function name:           drawNumber unsigned with size
  ** Descriptions:            drawNumber
  ***************************************************************************************/
@@ -498,20 +470,18 @@ ICACHE_FLASH_ATTR int drawString(const char *string, uint16_t poX, uint16_t poY,
 		uint16_t xPlus = drawUnicode(*string, poX, poY, size);
 
 		sumX += xPlus;
-		//*string++;		// huh ???
-		string++;		// that's better
+		string++;
 
-		//        if(poX < 264)
-		poX += xPlus;                                     // Move cursor right
+		// if(poX < 264)
+		poX += xPlus;   // Move cursor right
 	}
-
 	return sumX;
 }
 
 // NEW : set text color
 void setTextColor (uint16_t newColor)
 {
-		textcolor = newColor;
+	textcolor = newColor;
 }
 
 
@@ -519,10 +489,10 @@ void setTextColor (uint16_t newColor)
 //
 void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
 {
-	drawFastHLine(x, y, w, color);
-	drawFastHLine(x, y+h-1, w, color);
-	drawFastVLine(x, y, h, color);
-	drawFastVLine(x+w-1, y, h, color);
+	lcd_fast_h_line(x, y, w, color);
+	lcd_fast_h_line(x, y+h-1, w, color);
+	lcd_fast_v_line(x, y, h, color);
+	lcd_fast_v_line(x+w-1, y, h, color);
 
 	// possible optimization : this code overwrites the corner pixels.
 	// solution : shorten the lines.
@@ -563,7 +533,7 @@ void hspi_send_uint16_r(uint16_t data, int32_t repeats)
 /* Nefastor : TO DO : Bresenham line algo
  * Optimization idea : reduce the number of coordinate settings on line segments
  * longer than one pixels, to save on SPI bandwidth
- * Take inspiration from the drawFastHLine and drawFastVLine functions.
+ * Take inspiration from the lcd_fast_h_line and lcd_fast_v_line functions.
  * */
 
 
@@ -575,7 +545,7 @@ void Adafruit_GFX_AS::drawBitmap(int16_t x, int16_t y,
 
 	for(uint16_t j=0; j<h; j++) {
 		for(uint16_t i=0; i<w; i++ ) {
-			drawPixel(x+i, y+j, bitmap[j * w + i]);
+			lcd_draw_pixel(x+i, y+j, bitmap[j * w + i]);
 		}
 	}
 }
