@@ -259,8 +259,8 @@ inline void hspi_wait_ready(void)
 // Send up to SPIFIFOSIZE x 4 = 64 bytes. Warning : sending more will overflow the HSPI
 // Parameters are : pointer to a byte array, and number of bytes to send
 // WARNING - BE SURE OF ENDIANNESS
-// note : why the "const" on the first argument ?
-inline void hspi_send_data(/*const*/ uint8_t * data, int8_t datasize)
+// note : the "const" on the first argument is to allow the use of arrays stored in Flash
+inline void hspi_send_data(const uint8_t * data, int8_t datasize)
 {
 	uint32_t *_data = (uint32_t*)data;	// recast data pointer from 8 bits to 32 bits (the width of the HSPI data registers)
 
@@ -339,7 +339,7 @@ uint32 hspi_transaction (uint8 cmd_bits, uint16 cmd_data,
 		else
 			return READ_PERI_REG(SPI_W0(HSPI)); //Read in the same way as DOUT is sent. Note existing contents of SPI_W0 remain unless overwritten!
 	}
-
-	return 1; //Transaction completed successfully
+	else
+		return 1; //Transaction completed successfully
 }
 
