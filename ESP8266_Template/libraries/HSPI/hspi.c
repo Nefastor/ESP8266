@@ -62,6 +62,7 @@ inline void hspi_setup_big_endian ()
 	hspi_rx_byte_order_H_to_L;
 }
 
+// Note : this is the HSPI's default setting
 inline void hspi_setup_little_endian ()
 {
 	hspi_tx_byte_order_L_to_H;	// ILI9341 works like this
