@@ -260,27 +260,22 @@ inline void hspi_wait_ready(void)
 // Parameters are : pointer to a byte array, and number of bytes to send
 // WARNING - BE SURE OF ENDIANNESS
 // note : why the "const" on the first argument ?
-void hspi_send_data(const uint8_t * data, int8_t datasize)
+inline void hspi_send_data(/*const*/ uint8_t * data, int8_t datasize)
 {
 	uint32_t *_data = (uint32_t*)data;	// recast data pointer from 8 bits to 32 bits (the width of the HSPI data registers)
 
-	// Set the length of the write phase to 8 * datasize (bytes to bits)
-	//WRITE_PERI_REG(SPI_USER1(HSPI), (((datasize << 3) - 1) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
-	// Enable write phase and set its length
+	// Enable write phase and set its length. 8 * datasize (bytes to bits)
 	hspi_setup_write_phase_length (datasize << 3);
 
-	//uint8_t i = 0;
 	uint32_t* buff = (uint32_t*) SPI_W0(HSPI); // HSPI buffer start address
 
 	while (datasize > 0)	// because this will go negative if datasize % 4 != 0
 	{
-		//HSPI_FIFO[i++] = *_data++;
-		*buff = *_data++;
+		*buff++ = *_data++;
 		datasize -= 4;	// because datasize is in bytes and I'm sending 4 bytes at a time
 	}
 
-	hspi_start_transaction; // replaces statement below (validate with LCD demo)
-	// SET_PERI_REG_MASK(SPI_CMD(HSPI), SPI_USR);   // hspi_start_tx();
+	hspi_start_transaction;
 }
 
 
