@@ -62,7 +62,6 @@ inline void hspi_setup_big_endian ()
 	hspi_rx_byte_order_H_to_L;
 }
 
-// Note : this is the HSPI's default setting
 inline void hspi_setup_little_endian ()
 {
 	hspi_tx_byte_order_L_to_H;	// ILI9341 works like this
@@ -216,7 +215,6 @@ inline void hspi_setup_write_short_LE (uint32 dout_bits, uint32 dout_data)
 
 // Long write (1 to 512 bits) in big endian mode (MSB is sent first)
 // The data will be passed as a DWORD array
-// Note : LE order can be "faked" by using a byte array and recasting the pointer
 void hspi_setup_write_long_BE (uint32 dout_bits, uint32 *dout_data)
 {
 	// Enable write phase and set its length
@@ -227,9 +225,9 @@ void hspi_setup_write_long_BE (uint32 dout_bits, uint32 *dout_data)
 	// Copy 32 bits at a time. Loop will be skipped if there's less than 32 bits to send
 	while (dout_bits >= 32)
 	{
-		*buff = *dout_data;		// Copy 32 bits from argument to buffer
-		buff++;					// Increment both pointers
-		dout_data++;
+		*buff++ = *dout_data++;		// Copy 32 bits from argument to buffer
+		//buff++;					// Increment both pointers
+		//dout_data++;
 		dout_bits -= 32;		// Decrement the bits counter
 	}
 
@@ -238,7 +236,27 @@ void hspi_setup_write_long_BE (uint32 dout_bits, uint32 *dout_data)
 		*buff = (*dout_data) << (32 - dout_bits);
 }
 
+// Same as above but in little endian mode. Difference is in the trailing bits.
+void hspi_setup_write_long_LE (uint32 dout_bits, uint32 *dout_data)
+{
+	// Enable write phase and set its length
+	hspi_setup_write_phase_length (dout_bits);
 
+	uint32_t* buff = (uint32_t*) SPI_W0(HSPI);	// pointer to the first word of the buffer
+
+	// Copy 32 bits at a time. Loop will be skipped if there's less than 32 bits to send
+	while (dout_bits >= 32)
+	{
+		*buff++ = *dout_data++;		// Copy 32 bits from argument to buffer
+		//buff++;					// Increment both pointers
+		//dout_data++;
+		dout_bits -= 32;		// Decrement the bits counter
+	}
+
+	// If there's any data left, shift it before copying it
+	if (dout_bits > 0)
+		*buff = *dout_data;
+}
 
 
 
@@ -260,8 +278,8 @@ inline void hspi_wait_ready(void)
 // Send up to SPIFIFOSIZE x 4 = 64 bytes. Warning : sending more will overflow the HSPI
 // Parameters are : pointer to a byte array, and number of bytes to send
 // WARNING - BE SURE OF ENDIANNESS
-// note : why the "const" on the first argument ?
-inline void hspi_send_data(const uint8_t * data, int8_t datasize)
+// note : the "const" on the first argument is to allow the use of arrays stored in Flash
+/*inline void hspi_send_data_old (const uint8_t * data, int8_t datasize)
 {
 	uint32_t *_data = (uint32_t*)data;	// recast data pointer from 8 bits to 32 bits (the width of the HSPI data registers)
 
@@ -277,7 +295,8 @@ inline void hspi_send_data(const uint8_t * data, int8_t datasize)
 	}
 
 	hspi_start_transaction;
-}
+}*/
+
 
 
 /*
@@ -340,7 +359,7 @@ uint32 hspi_transaction (uint8 cmd_bits, uint16 cmd_data,
 		else
 			return READ_PERI_REG(SPI_W0(HSPI)); //Read in the same way as DOUT is sent. Note existing contents of SPI_W0 remain unless overwritten!
 	}
-
-	return 1; //Transaction completed successfully
+	else
+		return 1; //Transaction completed successfully
 }
 

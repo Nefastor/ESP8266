@@ -31,6 +31,8 @@ uint16_t	textbgcolor = 0x0000;
 ////////// Custom HSPI functions optimized for operating the ILI9341 /////////
 // They serve two purposes : performance enhancement and source code readability
 
+
+
 // Transmit 8 bits. Used to send command bytes.
 // Followed by calls to transmitData (pixel color) or transmitRange (to select a display area)
 inline void transmitCmd (uint8_t data)
@@ -65,12 +67,33 @@ inline void transmitRange (uint32_t data)
 	hspi_start_transaction;
 }
 
+// updating to new API.
+// note : argument types not definitive, work in progress.
+// In fact this function should be moved to the ILI 9341 library, for which
+// it was originally intended.
+/*
+inline void hspi_send_data (const uint8_t * data, int8_t datasize)
+{
+	// recast pointer to match HSPI buffer width and convert datasize from bytes to bits
+	hspi_setup_write_long_LE (datasize << 3, (uint32_t*) data);
+	// perform the transaction
+	hspi_start_transaction;
+}
+*/
+
 // Send a command byte followed by 1 to 64 data bytes
 void transmitCmdDataBuf (uint8_t cmd, const uint8_t *data, uint8_t numDataByte)
 {
 	transmitCmd (cmd);
-	hspi_send_data(data, numDataByte);
+	// hspi_send_data(data, numDataByte);
+	// recast pointer to match HSPI buffer width and convert datasize from bytes to bits
+	hspi_setup_write_long_LE (numDataByte << 3, (uint32_t*) data);
+	// perform the transaction
+	hspi_start_transaction;
 }
+
+
+
 
 ////////////// ILI-9341 COMMANDS //////////////////////////////////////
 // Now that we have optimized low-level SPI functions, time to use them

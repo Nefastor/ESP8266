@@ -21,14 +21,14 @@ void hspi_mode(uint8 spi_cpha,uint8 spi_cpol);
 void hspi_clock(uint16 prediv);
 
 inline void hspi_wait_ready(void);
-
+/*
 inline void hspi_send_uint8(uint8_t data);
 
 inline void hspi_send_uint16(uint16_t data);
 
 inline void hspi_send_uint32(uint32_t data);
-
-void hspi_send_data(const uint8_t * data, int8_t datasize);
+*/
+//void hspi_send_data(const uint8_t * data, int8_t datasize);
 
 // stolen from spi.c and mutated into an HSPI-only function.
 uint32 hspi_transaction(uint8 cmd_bits, uint16 cmd_data, uint32 addr_bits, uint32 addr_data, uint32 dout_bits, uint32 dout_data,
