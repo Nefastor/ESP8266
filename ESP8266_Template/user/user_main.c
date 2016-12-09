@@ -61,6 +61,7 @@ blink_task(void *pvParameters)
 
 inline void hspi_send_uint16(uint16_t data)
 {
+	// transfer size is always the same so it was set during firmware initialization
 	hspi_wait_ready ();
 	*HSPI_FIFO = data << 16; // shift because MSB first
 	hspi_start_transaction;
@@ -151,19 +152,16 @@ user_init(void)
 	// Tell FreeRTOS to start the LED blink task
     xTaskCreate(blink_task, "blink_task", 256, NULL, 2, NULL);
 
-	hspi_init();			// disables all SPI transaction phases so...
+    hspi_setup_pins (); //hspi_init();	// disables all SPI transaction phases so...
 	hspi_enable_data_phase;	// ... enable the write phase, it's the only one the MAX7219 needs
+	//hspi_tx_byte_order_H_to_L;
+	//hspi_rx_byte_order_H_to_L;
+	hspi_setup_big_endian ();
+	hspi_setup_mode(1, 0);
+	hspi_setup_clock (4);	// 10 MHz SCK
 
 	// we're always going to send data 16 bits at a time:
 	WRITE_PERI_REG(SPI_USER1(HSPI), (((uint32_t) 15) & SPI_USR_MOSI_BITLEN) << SPI_USR_MOSI_BITLEN_S);
-
-	hspi_tx_byte_order_H_to_L;
-	hspi_rx_byte_order_H_to_L;
-
-	hspi_mode(1, 0);
-	hspi_clock (4);	// 10 MHz SCK
-
-
 
 	xTaskCreate(counter_task, "counter_task", 256, NULL, 2, NULL);
 }
